@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+  background: #f6f7fb;
+  color: #172033;
+}
+
+.dark body {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+input,
+button {
+  font: inherit;
+}
