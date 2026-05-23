@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import { query } from "@/lib/db";
 import { setUserSession } from "@/lib/session";
 
 export async function POST(request) {
@@ -12,9 +12,11 @@ export async function POST(request) {
     return NextResponse.json({ error: "Preencha nome, matricula e senha." }, { status: 400 });
   }
 
-  const user = db
-    .prepare("SELECT id, senha_hash FROM usuarios WHERE nome = ? AND matricula = ?")
-    .get(normalizedName, normalizedMatricula);
+  const userResult = await query(
+    "SELECT id, senha_hash FROM usuarios WHERE nome = $1 AND matricula = $2",
+    [normalizedName, normalizedMatricula]
+  );
+  const user = userResult.rows[0];
 
   if (!user) {
     return NextResponse.json({ error: "Usuário ou senha inválidos." }, { status: 401 });

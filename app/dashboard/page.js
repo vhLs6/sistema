@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import db from "@/lib/db";
+import { query } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import DashboardClient from "./DashboardClient";
 
@@ -12,31 +12,28 @@ export default async function DashboardPage() {
     redirect("/");
   }
 
-  const trabalhos = db
-    .prepare(
-      "SELECT id, titulo, data_entrega AS dataEntrega, materia, valor FROM trabalhos WHERE usuario_id = ? ORDER BY data_entrega ASC, id DESC"
-    )
-    .all(user.id);
+  const trabalhos = await query(
+    "SELECT id, titulo, data_entrega AS \"dataEntrega\", materia, valor FROM trabalhos WHERE usuario_id = $1 ORDER BY data_entrega ASC, id DESC",
+    [user.id]
+  );
 
-  const notas = db
-    .prepare(
-      "SELECT id, materia, nota_atual AS notaAtual, creditos FROM notas WHERE usuario_id = ? ORDER BY materia ASC, id DESC"
-    )
-    .all(user.id);
+  const notas = await query(
+    "SELECT id, materia, nota_atual AS \"notaAtual\", creditos FROM notas WHERE usuario_id = $1 ORDER BY materia ASC, id DESC",
+    [user.id]
+  );
 
-  const horarios = db
-    .prepare(
-      "SELECT dia, horario, conteudo FROM horarios WHERE usuario_id = ? ORDER BY horario ASC, dia ASC"
-    )
-    .all(user.id);
+  const horarios = await query(
+    "SELECT dia, horario, conteudo FROM horarios WHERE usuario_id = $1 ORDER BY horario ASC, dia ASC",
+    [user.id]
+  );
 
   return (
     <DashboardClient
       userName={user.nome}
       initialProfile={user}
-      initialTrabalhos={trabalhos}
-      initialNotas={notas}
-      initialHorarios={horarios}
+      initialTrabalhos={trabalhos.rows}
+      initialNotas={notas.rows}
+      initialHorarios={horarios.rows}
     />
   );
 }

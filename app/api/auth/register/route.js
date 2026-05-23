@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import { query } from "@/lib/db";
 
 export async function POST(request) {
   const { nome, senha, matricula } = await request.json();
@@ -25,16 +25,15 @@ export async function POST(request) {
     );
   }
 
-  const existingUser = db.prepare("SELECT id FROM usuarios WHERE nome = ?").get(normalizedName);
-  if (existingUser) {
+  const existingUser = await query("SELECT id FROM usuarios WHERE nome = $1", [normalizedName]);
+  if (existingUser.rows[0]) {
     return NextResponse.json({ error: "Esse usuário já existe." }, { status: 409 });
   }
 
   const senhaHash = await bcrypt.hash(String(senha), 10);
-  db.prepare("INSERT INTO usuarios (nome, matricula, senha_hash) VALUES (?, ?, ?)").run(
-    normalizedName,
-    normalizedMatricula,
-    senhaHash
+  await query(
+    "INSERT INTO usuarios (nome, matricula, senha_hash) VALUES ($1, $2, $3)",
+    [normalizedName, normalizedMatricula, senhaHash]
   );
 
   return NextResponse.json({ ok: true });

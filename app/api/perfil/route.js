@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import { query } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 
 const fields = {
@@ -20,10 +20,9 @@ function normalizeProfile(data) {
   );
 }
 
-function selectProfile(userId) {
-  return db
-    .prepare(
-      `SELECT
+async function selectProfile(userId) {
+  const result = await query(
+    `SELECT
         id,
         nome,
         matricula,
@@ -36,9 +35,11 @@ function selectProfile(userId) {
         email_academico AS emailAcademico,
         numero_biblioteca AS numeroBiblioteca
       FROM usuarios
-      WHERE id = ?`
-    )
-    .get(userId);
+      WHERE id = $1`,
+    [userId]
+  );
+
+  return result.rows[0];
 }
 
 export async function PATCH(request) {
@@ -54,30 +55,31 @@ export async function PATCH(request) {
     return NextResponse.json({ error: "Preencha a matricula." }, { status: 400 });
   }
 
-  db.prepare(
+  await query(
     `UPDATE usuarios
-      SET nome_completo = ?,
-        idade = ?,
-        matricula = ?,
-        ano_ensino_medio = ?,
-        periodo = ?,
-        turma = ?,
-        curso_tecnico = ?,
-        email_academico = ?,
-        numero_biblioteca = ?
-      WHERE id = ?`
-  ).run(
-    profile.nomeCompleto,
-    profile.idade,
-    profile.matricula,
-    profile.anoEnsinoMedio,
-    profile.periodo,
-    profile.turma,
-    profile.cursoTecnico,
-    profile.emailAcademico,
-    profile.numeroBiblioteca,
-    user.id
+      SET nome_completo = $1,
+        idade = $2,
+        matricula = $3,
+        ano_ensino_medio = $4,
+        periodo = $5,
+        turma = $6,
+        curso_tecnico = $7,
+        email_academico = $8,
+        numero_biblioteca = $9
+      WHERE id = $10`,
+    [
+      profile.nomeCompleto,
+      profile.idade,
+      profile.matricula,
+      profile.anoEnsinoMedio,
+      profile.periodo,
+      profile.turma,
+      profile.cursoTecnico,
+      profile.emailAcademico,
+      profile.numeroBiblioteca,
+      user.id,
+    ]
   );
 
-  return NextResponse.json({ profile: selectProfile(user.id) });
+  return NextResponse.json({ profile: await selectProfile(user.id) });
 }

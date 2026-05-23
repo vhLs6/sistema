@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import { query } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 
 function parseValor(value) {
@@ -7,12 +7,13 @@ function parseValor(value) {
   return Number.isFinite(number) && number >= 0 ? number : 0;
 }
 
-function selectTrabalho(id, userId) {
-  return db
-    .prepare(
-      "SELECT id, titulo, data_entrega AS dataEntrega, materia, valor FROM trabalhos WHERE id = ? AND usuario_id = ?"
-    )
-    .get(id, userId);
+async function selectTrabalho(id, userId) {
+  const result = await query(
+    "SELECT id, titulo, data_entrega AS \"dataEntrega\", materia, valor FROM trabalhos WHERE id = $1 AND usuario_id = $2",
+    [id, userId]
+  );
+
+  return result.rows[0];
 }
 
 export async function GET() {
@@ -22,13 +23,12 @@ export async function GET() {
     return NextResponse.json({ error: "Faça login para continuar." }, { status: 401 });
   }
 
-  const trabalhos = db
-    .prepare(
-      "SELECT id, titulo, data_entrega AS dataEntrega, materia, valor FROM trabalhos WHERE usuario_id = ? ORDER BY data_entrega ASC, id DESC"
-    )
-    .all(user.id);
+  const trabalhos = await query(
+    "SELECT id, titulo, data_entrega AS \"dataEntrega\", materia, valor FROM trabalhos WHERE usuario_id = $1 ORDER BY data_entrega ASC, id DESC",
+    [user.id]
+  );
 
-  return NextResponse.json({ trabalhos });
+  return NextResponse.json({ trabalhos: trabalhos.rows });
 }
 
 export async function POST(request) {
@@ -51,11 +51,10 @@ export async function POST(request) {
     );
   }
 
-  const result = db
-    .prepare(
-      "INSERT INTO trabalhos (usuario_id, titulo, data_entrega, materia, valor) VALUES (?, ?, ?, ?, ?)"
-    )
-    .run(user.id, titulo, dataEntrega, materia, valor);
+  const result = await query(
+    "INSERT INTO trabalhos (usuario_id, titulo, data_entrega, materia, valor) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+    [user.id, titulo, dataEntrega, materia, valor]
+  );
 
-  return NextResponse.json({ trabalho: selectTrabalho(result.lastInsertRowid, user.id) });
+  return NextResponse.json({ trabalho: await selectTrabalho(result.rows[0].id, user.id) });
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import { query } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 
 function parseNota(value) {
@@ -13,12 +13,13 @@ function parseCreditos(value) {
   return Number.isFinite(number) && number >= 0 ? number : 0;
 }
 
-function selectNota(id, userId) {
-  return db
-    .prepare(
-      "SELECT id, materia, nota_atual AS notaAtual, creditos FROM notas WHERE id = ? AND usuario_id = ?"
-    )
-    .get(id, userId);
+async function selectNota(id, userId) {
+  const result = await query(
+    "SELECT id, materia, nota_atual AS \"notaAtual\", creditos FROM notas WHERE id = $1 AND usuario_id = $2",
+    [id, userId]
+  );
+
+  return result.rows[0];
 }
 
 export async function GET() {
@@ -28,13 +29,12 @@ export async function GET() {
     return NextResponse.json({ error: "Faça login para continuar." }, { status: 401 });
   }
 
-  const notas = db
-    .prepare(
-      "SELECT id, materia, nota_atual AS notaAtual, creditos FROM notas WHERE usuario_id = ? ORDER BY materia ASC, id DESC"
-    )
-    .all(user.id);
+  const notas = await query(
+    "SELECT id, materia, nota_atual AS \"notaAtual\", creditos FROM notas WHERE usuario_id = $1 ORDER BY materia ASC, id DESC",
+    [user.id]
+  );
 
-  return NextResponse.json({ notas });
+  return NextResponse.json({ notas: notas.rows });
 }
 
 export async function POST(request) {
@@ -53,9 +53,10 @@ export async function POST(request) {
     return NextResponse.json({ error: "Preencha a matéria." }, { status: 400 });
   }
 
-  const result = db
-    .prepare("INSERT INTO notas (usuario_id, materia, nota_atual, creditos) VALUES (?, ?, ?, ?)")
-    .run(user.id, materia, notaAtual, creditos);
+  const result = await query(
+    "INSERT INTO notas (usuario_id, materia, nota_atual, creditos) VALUES ($1, $2, $3, $4) RETURNING id",
+    [user.id, materia, notaAtual, creditos]
+  );
 
-  return NextResponse.json({ nota: selectNota(result.lastInsertRowid, user.id) });
+  return NextResponse.json({ nota: await selectNota(result.rows[0].id, user.id) });
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 
 const allowedDays = new Set(["segunda", "terca", "quarta", "quinta", "sexta"]);
@@ -36,11 +36,11 @@ export async function GET() {
     return NextResponse.json({ error: "Faça login para continuar." }, { status: 401 });
   }
 
-  const horarios = db
-    .prepare("SELECT dia, horario, conteudo FROM horarios WHERE usuario_id = ?")
-    .all(user.id);
+  const horarios = await query("SELECT dia, horario, conteudo FROM horarios WHERE usuario_id = $1", [
+    user.id,
+  ]);
 
-  return NextResponse.json({ horarios });
+  return NextResponse.json({ horarios: horarios.rows });
 }
 
 export async function PATCH(request) {
@@ -53,25 +53,21 @@ export async function PATCH(request) {
   const data = await request.json();
   const cells = Array.isArray(data.horarios) ? data.horarios.map(normalizeCell).filter(Boolean) : [];
 
-  const saveHorarios = db.transaction(() => {
-    db.prepare("DELETE FROM horarios WHERE usuario_id = ?").run(user.id);
-
-    const insert = db.prepare(
-      "INSERT INTO horarios (usuario_id, dia, horario, conteudo) VALUES (?, ?, ?, ?)"
-    );
-
+  await withTransaction(async (client) => {
+    await client.query("DELETE FROM horarios WHERE usuario_id = $1", [user.id]);
     for (const cell of cells) {
       if (cell.conteudo) {
-        insert.run(user.id, cell.dia, cell.horario, cell.conteudo);
+        await client.query(
+          "INSERT INTO horarios (usuario_id, dia, horario, conteudo) VALUES ($1, $2, $3, $4)",
+          [user.id, cell.dia, cell.horario, cell.conteudo]
+        );
       }
     }
   });
 
-  saveHorarios();
+  const horarios = await query("SELECT dia, horario, conteudo FROM horarios WHERE usuario_id = $1", [
+    user.id,
+  ]);
 
-  const horarios = db
-    .prepare("SELECT dia, horario, conteudo FROM horarios WHERE usuario_id = ?")
-    .all(user.id);
-
-  return NextResponse.json({ horarios });
+  return NextResponse.json({ horarios: horarios.rows });
 }

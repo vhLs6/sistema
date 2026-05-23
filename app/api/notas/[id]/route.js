@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import { query } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 
 function parseId(value) {
@@ -18,12 +18,13 @@ function parseCreditos(value) {
   return Number.isFinite(number) && number >= 0 ? number : 0;
 }
 
-function selectNota(id, userId) {
-  return db
-    .prepare(
-      "SELECT id, materia, nota_atual AS notaAtual, creditos FROM notas WHERE id = ? AND usuario_id = ?"
-    )
-    .get(id, userId);
+async function selectNota(id, userId) {
+  const result = await query(
+    "SELECT id, materia, nota_atual AS \"notaAtual\", creditos FROM notas WHERE id = $1 AND usuario_id = $2",
+    [id, userId]
+  );
+
+  return result.rows[0];
 }
 
 export async function PATCH(request, context) {
@@ -49,15 +50,16 @@ export async function PATCH(request, context) {
     return NextResponse.json({ error: "Preencha a matéria." }, { status: 400 });
   }
 
-  const result = db
-    .prepare("UPDATE notas SET materia = ?, nota_atual = ?, creditos = ? WHERE id = ? AND usuario_id = ?")
-    .run(materia, notaAtual, creditos, id, user.id);
+  const result = await query(
+    "UPDATE notas SET materia = $1, nota_atual = $2, creditos = $3 WHERE id = $4 AND usuario_id = $5",
+    [materia, notaAtual, creditos, id, user.id]
+  );
 
-  if (result.changes === 0) {
+  if (result.rowCount === 0) {
     return NextResponse.json({ error: "Nota não encontrada." }, { status: 404 });
   }
 
-  return NextResponse.json({ nota: selectNota(id, user.id) });
+  return NextResponse.json({ nota: await selectNota(id, user.id) });
 }
 
 export async function DELETE(_request, context) {
@@ -74,7 +76,7 @@ export async function DELETE(_request, context) {
     return NextResponse.json({ error: "Nota inválida." }, { status: 400 });
   }
 
-  db.prepare("DELETE FROM notas WHERE id = ? AND usuario_id = ?").run(id, user.id);
+  await query("DELETE FROM notas WHERE id = $1 AND usuario_id = $2", [id, user.id]);
 
   return NextResponse.json({ ok: true });
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import { query } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 
 function parseId(value) {
@@ -12,12 +12,13 @@ function parseValor(value) {
   return Number.isFinite(number) && number >= 0 ? number : 0;
 }
 
-function selectTrabalho(id, userId) {
-  return db
-    .prepare(
-      "SELECT id, titulo, data_entrega AS dataEntrega, materia, valor FROM trabalhos WHERE id = ? AND usuario_id = ?"
-    )
-    .get(id, userId);
+async function selectTrabalho(id, userId) {
+  const result = await query(
+    "SELECT id, titulo, data_entrega AS \"dataEntrega\", materia, valor FROM trabalhos WHERE id = $1 AND usuario_id = $2",
+    [id, userId]
+  );
+
+  return result.rows[0];
 }
 
 export async function PATCH(request, context) {
@@ -47,17 +48,16 @@ export async function PATCH(request, context) {
     );
   }
 
-  const result = db
-    .prepare(
-      "UPDATE trabalhos SET titulo = ?, data_entrega = ?, materia = ?, valor = ? WHERE id = ? AND usuario_id = ?"
-    )
-    .run(titulo, dataEntrega, materia, valor, id, user.id);
+  const result = await query(
+    "UPDATE trabalhos SET titulo = $1, data_entrega = $2, materia = $3, valor = $4 WHERE id = $5 AND usuario_id = $6",
+    [titulo, dataEntrega, materia, valor, id, user.id]
+  );
 
-  if (result.changes === 0) {
+  if (result.rowCount === 0) {
     return NextResponse.json({ error: "Trabalho não encontrado." }, { status: 404 });
   }
 
-  return NextResponse.json({ trabalho: selectTrabalho(id, user.id) });
+  return NextResponse.json({ trabalho: await selectTrabalho(id, user.id) });
 }
 
 export async function DELETE(_request, context) {
@@ -74,7 +74,7 @@ export async function DELETE(_request, context) {
     return NextResponse.json({ error: "Trabalho inválido." }, { status: 400 });
   }
 
-  db.prepare("DELETE FROM trabalhos WHERE id = ? AND usuario_id = ?").run(id, user.id);
+  await query("DELETE FROM trabalhos WHERE id = $1 AND usuario_id = $2", [id, user.id]);
 
   return NextResponse.json({ ok: true });
 }

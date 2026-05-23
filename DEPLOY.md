@@ -1,24 +1,40 @@
-# Colocar o site no ar
+# Colocar o site no ar com Supabase + Render
 
-Este projeto e um app Next.js com SQLite. Para outras pessoas usarem, hospede em um servico com disco persistente para o arquivo do banco.
+Este projeto usa Next.js no Render e Postgres no Supabase.
 
-## Opcao recomendada: Render
+## 1. Criar o banco no Supabase
 
-1. Crie um repositorio no GitHub e envie esta pasta para ele.
-2. No Render, crie um **Web Service** conectado ao repositorio.
-3. Configure:
-   - Build Command: `npm install && npm run build`
-   - Start Command: `npm start`
-   - Environment: `Node`
-4. Em **Environment Variables**, adicione:
-   - `SESSION_SECRET`: uma chave grande e aleatoria
-   - `DATABASE_PATH`: `/var/data/usuarios.sqlite`
-5. Em **Disks**, adicione um disco persistente:
-   - Mount Path: `/var/data`
-6. Clique em **Deploy**.
+1. Entre em `https://supabase.com`.
+2. Clique em **New project**.
+3. Escolha um nome, crie uma senha do banco e aguarde o projeto ficar pronto.
+4. No painel do projeto, va em **Project Settings** > **Database**.
+5. Copie a connection string do Postgres.
+6. Troque `[YOUR-PASSWORD]` pela senha que voce criou.
 
-Depois do deploy, o Render vai mostrar uma URL publica para acessar o site.
+Ela vai parecer com isto:
 
-## Importante
+```text
+postgresql://postgres.sua-ref:senha@aws-0-sa-east-1.pooler.supabase.com:6543/postgres
+```
 
-Vercel e Netlify nao sao a melhor opcao para este app do jeito que ele esta, porque o banco SQLite precisa gravar dados em um arquivo persistente. Se quiser usar Vercel, o ideal e trocar o SQLite por um banco externo como Postgres.
+## 2. Configurar no Render
+
+No seu Web Service do Render, adicione estas variaveis em **Environment Variables**:
+
+```text
+SESSION_SECRET=uma-chave-grande-e-aleatoria
+DATABASE_URL=sua-connection-string-do-supabase
+```
+
+Depois use:
+
+```text
+Build Command: npm install && npm run build
+Start Command: npm start
+```
+
+## 3. Deploy
+
+Clique em **Deploy** no Render. As tabelas do banco sao criadas automaticamente na primeira vez que o site acessar o Supabase.
+
+Agora os dados ficam no Supabase, entao eles nao somem quando o Render reinicia ou faz redeploy.
