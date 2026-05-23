@@ -49,19 +49,19 @@ const scheduleDays = [
 ];
 
 const scheduleSlots = [
-  { id: "07:00", label: "7:00" },
-  { id: "07:50", label: "7:50" },
-  { id: "08:40", label: "8:40" },
+  { id: "07:00", label: "7:00 - 7:50" },
+  { id: "07:50", label: "7:50 - 8:40" },
+  { id: "08:40", label: "8:40 - 9:30" },
   { id: "recreio-manha", label: "9:30 - 9:50", breakLabel: "Recreio" },
-  { id: "09:50", label: "9:50" },
-  { id: "10:40", label: "10:40" },
-  { id: "11:30", label: "11:30" },
-  { id: "13:00", label: "13:00" },
-  { id: "13:50", label: "13:50" },
+  { id: "09:50", label: "9:50 - 10:40" },
+  { id: "10:40", label: "10:40 - 11:30" },
+  { id: "almoco", label: "11:30 - 13:00", breakLabel: "Almoço" },
+  { id: "13:00", label: "13:00 - 13:50" },
+  { id: "13:50", label: "13:50 - 14:40" },
   { id: "pausa-tarde", label: "14:40 - 15:00", breakLabel: "Pausa" },
-  { id: "15:00", label: "15:00" },
-  { id: "15:50", label: "15:50" },
-  { id: "16:40", label: "16:40" },
+  { id: "15:00", label: "15:00 - 15:50" },
+  { id: "15:50", label: "15:50 - 16:40" },
+  { id: "16:40", label: "16:40 - 17:30" },
 ];
 
 function toNumber(value) {
@@ -134,6 +134,10 @@ function Input({ className = "", ...props }) {
   );
 }
 
+function DateInput(props) {
+  return <Input {...props} type="date" className={`min-w-0 appearance-none ${props.className || ""}`} />;
+}
+
 function IconButton({ children, className = "", ...props }) {
   return (
     <button
@@ -172,6 +176,17 @@ export default function DashboardClient({
     setDarkMode(shouldUseDark);
     document.documentElement.classList.toggle("dark", shouldUseDark);
   }, []);
+
+  useEffect(() => {
+    if (!message && !error) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setMessage("");
+      setError("");
+    }, 3000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [message, error]);
 
   function toggleDarkMode() {
     const nextMode = !darkMode;
@@ -521,11 +536,11 @@ export default function DashboardClient({
   }
 
   const navItems = [
-    { id: "perfil", label: "Informações pessoais", icon: UserRound },
     { id: "inicio", label: "Início", icon: LayoutDashboard },
+    { id: "notas", label: "Notas", icon: GraduationCap },
     { id: "trabalhos", label: "Trabalhos", icon: ClipboardList },
-    { id: "notas", label: "Controle de notas", icon: GraduationCap },
     { id: "horarios", label: "Horários", icon: CalendarDays },
+    { id: "perfil", label: "Informações pessoais", icon: UserRound },
   ];
 
   return (
@@ -830,12 +845,12 @@ function ScheduleSection({ horarios, updateHorario, saveHorarios, busy }) {
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead className="bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               <tr>
-                <th className="w-32 px-4 py-3 font-semibold">Horário</th>
+                <th className="w-36 px-3 py-2 font-semibold">Horário</th>
                 {scheduleDays.map((day) => (
-                  <th key={day.id} className="px-4 py-3 font-semibold">
+                  <th key={day.id} className="px-3 py-2 font-semibold">
                     {day.label}
                   </th>
                 ))}
@@ -846,10 +861,10 @@ function ScheduleSection({ horarios, updateHorario, saveHorarios, busy }) {
                 if (slot.breakLabel) {
                   return (
                     <tr key={slot.id} className="bg-slate-50 dark:bg-slate-800/70">
-                      <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">{slot.label}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-700 dark:text-slate-200">{slot.label}</td>
                       <td
                         colSpan={scheduleDays.length}
-                        className="px-4 py-3 text-center font-semibold text-slate-600 dark:text-slate-300"
+                        className="px-3 py-2 text-center font-semibold text-slate-600 dark:text-slate-300"
                       >
                         {slot.breakLabel}
                       </td>
@@ -859,13 +874,14 @@ function ScheduleSection({ horarios, updateHorario, saveHorarios, busy }) {
 
                 return (
                   <tr key={slot.id}>
-                    <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">{slot.label}</td>
+                    <td className="px-3 py-2 font-semibold text-slate-700 dark:text-slate-200">{slot.label}</td>
                     {scheduleDays.map((day) => (
-                      <td key={day.id} className="px-3 py-3 align-top">
-                        <textarea
+                      <td key={day.id} className="px-2 py-2 align-top">
+                        <input
+                          type="text"
                           value={horarios[horarioKey(day.id, slot.id)] || ""}
                           onChange={(event) => updateHorario(day.id, slot.id, event.target.value)}
-                          className="h-16 w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition focus:border-[#1d6f8f] focus:ring-4 focus:ring-cyan-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-cyan-950"
+                          className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-950 outline-none transition focus:border-[#1d6f8f] focus:ring-4 focus:ring-cyan-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-cyan-950"
                         />
                       </td>
                     ))}
@@ -907,8 +923,9 @@ function WorkSection({
           }
           placeholder="Trabalho"
         />
-        <Input
-          type="date"
+        <DateInput
+          aria-label="Data para entrega"
+          title="Data para entrega"
           value={novoTrabalho.dataEntrega}
           onChange={(event) =>
             setNovoTrabalho((current) => ({ ...current, dataEntrega: event.target.value }))
@@ -971,8 +988,9 @@ function WorkSection({
                     />
                   </td>
                   <td className="px-4 py-3">
-                    <Input
-                      type="date"
+                    <DateInput
+                      aria-label="Data para entrega"
+                      title="Data para entrega"
                       value={trabalho.dataEntrega}
                       onChange={(event) =>
                         updateTrabalho(trabalho.id, "dataEntrega", event.target.value)
