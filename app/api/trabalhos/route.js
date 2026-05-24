@@ -7,9 +7,13 @@ function parseValor(value) {
   return Number.isFinite(number) && number >= 0 ? number : 0;
 }
 
+function parseStatus(value) {
+  return value === "entregue" ? "entregue" : "pendente";
+}
+
 async function selectTrabalho(id, userId) {
   const result = await query(
-    "SELECT id, titulo, data_entrega AS \"dataEntrega\", materia, valor FROM trabalhos WHERE id = $1 AND usuario_id = $2",
+    "SELECT id, titulo, data_entrega AS \"dataEntrega\", materia, valor, status FROM trabalhos WHERE id = $1 AND usuario_id = $2",
     [id, userId]
   );
 
@@ -24,7 +28,7 @@ export async function GET() {
   }
 
   const trabalhos = await query(
-    "SELECT id, titulo, data_entrega AS \"dataEntrega\", materia, valor FROM trabalhos WHERE usuario_id = $1 ORDER BY data_entrega ASC, id DESC",
+    "SELECT id, titulo, data_entrega AS \"dataEntrega\", materia, valor, status FROM trabalhos WHERE usuario_id = $1 ORDER BY data_entrega ASC, id DESC",
     [user.id]
   );
 
@@ -43,6 +47,7 @@ export async function POST(request) {
   const dataEntrega = String(data.dataEntrega || "").trim();
   const materia = String(data.materia || "").trim();
   const valor = parseValor(data.valor);
+  const status = parseStatus(data.status);
 
   if (!titulo || !dataEntrega || !materia) {
     return NextResponse.json(
@@ -52,8 +57,8 @@ export async function POST(request) {
   }
 
   const result = await query(
-    "INSERT INTO trabalhos (usuario_id, titulo, data_entrega, materia, valor) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-    [user.id, titulo, dataEntrega, materia, valor]
+    "INSERT INTO trabalhos (usuario_id, titulo, data_entrega, materia, valor, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+    [user.id, titulo, dataEntrega, materia, valor, status]
   );
 
   return NextResponse.json({ trabalho: await selectTrabalho(result.rows[0].id, user.id) });

@@ -13,7 +13,7 @@ export default async function DashboardPage() {
   }
 
   const trabalhos = await query(
-    "SELECT id, titulo, data_entrega AS \"dataEntrega\", materia, valor FROM trabalhos WHERE usuario_id = $1 ORDER BY data_entrega ASC, id DESC",
+    "SELECT id, titulo, data_entrega AS \"dataEntrega\", materia, valor, status FROM trabalhos WHERE usuario_id = $1 ORDER BY data_entrega ASC, id DESC",
     [user.id]
   );
 
@@ -27,6 +27,11 @@ export default async function DashboardPage() {
     [user.id]
   );
 
+  const provas = await query(
+    "SELECT id, titulo, data_prova AS \"dataProva\", materia, conteudo, valor, nota FROM provas WHERE usuario_id = $1 ORDER BY data_prova ASC, id DESC",
+    [user.id]
+  );
+
   return (
     <DashboardClient
       userName={user.nome}
@@ -34,6 +39,7 @@ export default async function DashboardPage() {
       initialTrabalhos={trabalhos.rows}
       initialNotas={notas.rows}
       initialHorarios={horarios.rows}
+      initialProvas={provas.rows}
     />
   );
 }

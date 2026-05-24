@@ -10,12 +10,12 @@ import {
   GraduationCap,
   LayoutDashboard,
   LogOut,
-  Moon,
   Plus,
   Save,
-  Sun,
+  Settings,
   Trash2,
   UserRound,
+  X,
 } from "lucide-react";
 
 const emptyTrabalho = {
@@ -23,6 +23,16 @@ const emptyTrabalho = {
   dataEntrega: "",
   materia: "",
   valor: "",
+  status: "pendente",
+};
+
+const emptyProva = {
+  titulo: "",
+  dataProva: "",
+  materia: "",
+  conteudo: "",
+  valor: "",
+  nota: "",
 };
 
 const emptyNota = {
@@ -51,6 +61,45 @@ const deadlineFormatter = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "short",
 });
+
+const subjectPalettes = [
+  {
+    accent: "bg-emerald-500",
+    chip: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200",
+    field: "border-emerald-300 bg-emerald-50/70 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100",
+  },
+  {
+    accent: "bg-sky-500",
+    chip: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/50 dark:text-sky-200",
+    field: "border-sky-300 bg-sky-50/70 text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100",
+  },
+  {
+    accent: "bg-amber-500",
+    chip: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200",
+    field: "border-amber-300 bg-amber-50/70 text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100",
+  },
+  {
+    accent: "bg-rose-500",
+    chip: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-200",
+    field: "border-rose-300 bg-rose-50/70 text-rose-950 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-100",
+  },
+  {
+    accent: "bg-violet-500",
+    chip: "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/50 dark:text-violet-200",
+    field: "border-violet-300 bg-violet-50/70 text-violet-950 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-100",
+  },
+  {
+    accent: "bg-teal-500",
+    chip: "border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900 dark:bg-teal-950/50 dark:text-teal-200",
+    field: "border-teal-300 bg-teal-50/70 text-teal-950 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-100",
+  },
+];
+
+const defaultSubjectPalette = {
+  accent: "bg-slate-300 dark:bg-slate-600",
+  chip: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
+  field: "border-slate-300 bg-white text-slate-950 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100",
+};
 
 const dayInMs = 24 * 60 * 60 * 1000;
 
@@ -119,6 +168,64 @@ function getDeadlineLabel(daysUntil) {
   return `Em ${daysUntil} dias`;
 }
 
+function normalizeSubject(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function getSubjectPalette(subject, enabled) {
+  const normalizedSubject = normalizeSubject(subject);
+
+  if (!enabled || !normalizedSubject) {
+    return defaultSubjectPalette;
+  }
+
+  let hash = 0;
+
+  for (const character of normalizedSubject) {
+    hash = (hash * 31 + character.charCodeAt(0)) % 9973;
+  }
+
+  return subjectPalettes[hash % subjectPalettes.length];
+}
+
+function normalizeWorkStatus(value) {
+  return value === "entregue" ? "entregue" : "pendente";
+}
+
+function getWorkStatus(work, todayDate) {
+  const status = normalizeWorkStatus(work.status);
+
+  if (status === "entregue") {
+    return "entregue";
+  }
+
+  const deadlineDate = parseDateInput(work.dataEntrega);
+
+  if (todayDate && deadlineDate && startOfDay(deadlineDate) < startOfDay(todayDate)) {
+    return "atrasado";
+  }
+
+  return "pendente";
+}
+
+function getWorkStatusLabel(status) {
+  if (status === "entregue") return "Entregue";
+  if (status === "atrasado") return "Atrasado";
+  return "Pendente";
+}
+
+function getWorkStatusClassName(status) {
+  if (status === "entregue") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200";
+  }
+
+  if (status === "atrasado") {
+    return "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200";
+  }
+
+  return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200";
+}
+
 function horarioKey(dayId, slotId) {
   return `${dayId}__${slotId}`;
 }
@@ -174,12 +281,13 @@ function buildTodayOverview(todayDate, horarios) {
   };
 }
 
-function buildUpcomingDeadlines(trabalhos, todayDate) {
+function buildUpcomingDeadlines(trabalhos, provas, todayDate) {
   if (!todayDate) return [];
 
   const today = startOfDay(todayDate);
 
-  return trabalhos
+  const workDeadlines = trabalhos
+    .filter((trabalho) => normalizeWorkStatus(trabalho.status) !== "entregue")
     .map((trabalho) => {
       const deadlineDate = parseDateInput(trabalho.dataEntrega);
       if (!deadlineDate) return null;
@@ -189,13 +297,41 @@ function buildUpcomingDeadlines(trabalhos, todayDate) {
 
       return {
         ...trabalho,
+        type: "Trabalho",
+        date: deadlineDate,
         daysUntil,
         dateLabel: deadlineFormatter.format(deadlineDate),
         deadlineLabel: getDeadlineLabel(daysUntil),
       };
     })
-    .filter(Boolean)
-    .sort((first, second) => first.daysUntil - second.daysUntil || first.id - second.id)
+    .filter(Boolean);
+
+  const examDeadlines = provas
+    .map((prova) => {
+      const deadlineDate = parseDateInput(prova.dataProva);
+      if (!deadlineDate) return null;
+
+      const daysUntil = Math.round((startOfDay(deadlineDate) - today) / dayInMs);
+      if (daysUntil < 0 || daysUntil > 7) return null;
+
+      return {
+        ...prova,
+        type: "Prova",
+        date: deadlineDate,
+        daysUntil,
+        dateLabel: deadlineFormatter.format(deadlineDate),
+        deadlineLabel: getDeadlineLabel(daysUntil),
+      };
+    })
+    .filter(Boolean);
+
+  return [...workDeadlines, ...examDeadlines]
+    .sort(
+      (first, second) =>
+        first.daysUntil - second.daysUntil ||
+        first.type.localeCompare(second.type) ||
+        first.id - second.id
+    )
     .slice(0, 5);
 }
 
@@ -248,6 +384,26 @@ function Input({ className = "", ...props }) {
   );
 }
 
+function Select({ className = "", children, ...props }) {
+  return (
+    <select
+      {...props}
+      className={`h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-[#1d6f8f] focus:ring-4 focus:ring-cyan-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-cyan-950 ${className}`}
+    >
+      {children}
+    </select>
+  );
+}
+
+function Textarea({ className = "", ...props }) {
+  return (
+    <textarea
+      {...props}
+      className={`min-h-24 w-full resize-y rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition focus:border-[#1d6f8f] focus:ring-4 focus:ring-cyan-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-cyan-950 ${className}`}
+    />
+  );
+}
+
 function DateInput(props) {
   return <Input {...props} type="date" className={`min-w-0 appearance-none ${props.className || ""}`} />;
 }
@@ -269,19 +425,24 @@ export default function DashboardClient({
   initialTrabalhos,
   initialNotas,
   initialHorarios,
+  initialProvas,
 }) {
   const [activeTab, setActiveTab] = useState("inicio");
   const [profile, setProfile] = useState(initialProfile);
   const [trabalhos, setTrabalhos] = useState(initialTrabalhos);
   const [notas, setNotas] = useState(initialNotas);
   const [horarios, setHorarios] = useState(() => createHorarioGrid(initialHorarios));
+  const [provas, setProvas] = useState(initialProvas);
   const [novoTrabalho, setNovoTrabalho] = useState(emptyTrabalho);
+  const [novaProva, setNovaProva] = useState(emptyProva);
   const [novaNota, setNovaNota] = useState(emptyNota);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [darkMode, setDarkMode] = useState(false);
   const [todayDate, setTodayDate] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [subjectColorsEnabled, setSubjectColorsEnabled] = useState(true);
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("theme");
@@ -290,6 +451,7 @@ export default function DashboardClient({
 
     setDarkMode(shouldUseDark);
     document.documentElement.classList.toggle("dark", shouldUseDark);
+    setSubjectColorsEnabled(window.localStorage.getItem("subjectColors") !== "off");
   }, []);
 
   useEffect(() => {
@@ -314,6 +476,12 @@ export default function DashboardClient({
     window.localStorage.setItem("theme", nextMode ? "dark" : "light");
   }
 
+  function toggleSubjectColors() {
+    const nextMode = !subjectColorsEnabled;
+    setSubjectColorsEnabled(nextMode);
+    window.localStorage.setItem("subjectColors", nextMode ? "on" : "off");
+  }
+
   const stats = useMemo(() => {
     const totalMaterias = notas.length;
     const creditosTotais = notas.reduce((sum, nota) => sum + toNumber(nota.creditos), 0);
@@ -322,15 +490,18 @@ export default function DashboardClient({
       0
     );
     const coeficiente = creditosTotais > 0 ? somaPonderada / creditosTotais : 0;
-    const trabalhosPendentes = trabalhos.length;
+    const trabalhosPendentes = trabalhos.filter(
+      (trabalho) => getWorkStatus(trabalho, todayDate) !== "entregue"
+    ).length;
 
     return {
       coeficiente,
       totalMaterias,
       creditosTotais,
       trabalhosPendentes,
+      provas: provas.length,
     };
-  }, [notas, trabalhos]);
+  }, [notas, trabalhos, provas, todayDate]);
 
   const todayOverview = useMemo(
     () => buildTodayOverview(todayDate, horarios),
@@ -338,8 +509,8 @@ export default function DashboardClient({
   );
 
   const upcomingDeadlines = useMemo(
-    () => buildUpcomingDeadlines(trabalhos, todayDate),
-    [trabalhos, todayDate]
+    () => buildUpcomingDeadlines(trabalhos, provas, todayDate),
+    [trabalhos, provas, todayDate]
   );
 
   async function sendRequest(url, options) {
@@ -378,6 +549,12 @@ export default function DashboardClient({
   function updateNota(id, field, value) {
     setNotas((current) =>
       current.map((nota) => (nota.id === id ? { ...nota, [field]: value } : nota))
+    );
+  }
+
+  function updateProva(id, field, value) {
+    setProvas((current) =>
+      current.map((prova) => (prova.id === id ? { ...prova, [field]: value } : prova))
     );
   }
 
@@ -425,9 +602,11 @@ export default function DashboardClient({
     const pageBottom = 282;
     const tableWidth = 182;
     const columns = [
-      { label: "Matérias", x: marginX, width: 92 },
-      { label: "Nota atual", x: marginX + 92, width: 38 },
-      { label: "Pontos restantes", x: marginX + 130, width: 52 },
+      { label: "Matérias", x: marginX, width: 72 },
+      { label: "Nota", x: marginX + 72, width: 28 },
+      { label: "Restante", x: marginX + 100, width: 34 },
+      { label: "Créditos", x: marginX + 134, width: 24 },
+      { label: "Faltas", x: marginX + 158, width: 24 },
     ];
 
     function ensureSpace(height) {
@@ -450,10 +629,8 @@ export default function DashboardClient({
       doc.setFontSize(10);
       columns.forEach((column) => {
         doc.rect(column.x, y, column.width, 9, "FD");
+        doc.text(column.label, column.x + 2, y + 6);
       });
-      doc.text("Matérias", columns[0].x + 2, y + 6);
-      doc.text("Nota atual", columns[1].x + 2, y + 6);
-      doc.text("Pontos restantes", columns[2].x + 2, y + 6);
       y += 9;
       doc.setTextColor(15, 23, 42);
       doc.setFont("helvetica", "normal");
@@ -467,7 +644,7 @@ export default function DashboardClient({
       }
 
       rows.forEach((nota) => {
-        const materiaLines = doc.splitTextToSize(nota.materia || "-", 86);
+        const materiaLines = doc.splitTextToSize(nota.materia || "-", 66);
         const rowHeight = Math.max(10, materiaLines.length * 5 + 4);
         ensureSpace(rowHeight + 2);
         doc.setFontSize(9);
@@ -480,6 +657,8 @@ export default function DashboardClient({
         doc.text(materiaLines, columns[0].x + 2, y + 5);
         doc.text(formatNumber(nota.notaAtual), columns[1].x + 2, y + 6);
         doc.text(formatNumber(notaRestante(nota.notaAtual)), columns[2].x + 2, y + 6);
+        doc.text(formatNumber(nota.creditos), columns[3].x + 2, y + 6);
+        doc.text(formatNumber(nota.faltas), columns[4].x + 2, y + 6);
         y += rowHeight;
       });
 
@@ -499,6 +678,7 @@ export default function DashboardClient({
       `Ano no ensino médio: ${profile.anoEnsinoMedio || "-"}`,
       `Período: ${profile.periodo || "-"}`,
       `Coeficiente atual: ${formatTruncatedOneDecimal(stats.coeficiente)}`,
+      `Créditos totais: ${formatNumber(stats.creditosTotais)}`,
     ].forEach((line) => {
       doc.text(line, 14, y);
       y += 7;
@@ -571,6 +751,58 @@ export default function DashboardClient({
       await sendRequest(`/api/trabalhos/${id}`, { method: "DELETE" });
       setTrabalhos((current) => current.filter((trabalho) => trabalho.id !== id));
       showSuccess("Trabalho removido.");
+    } catch (requestError) {
+      showError(requestError);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function addProva(event) {
+    event.preventDefault();
+    setBusy("add-prova");
+
+    try {
+      const data = await sendRequest("/api/provas", {
+        method: "POST",
+        body: JSON.stringify(novaProva),
+      });
+
+      setProvas((current) => [...current, data.prova]);
+      setNovaProva(emptyProva);
+      showSuccess("Prova adicionada.");
+    } catch (requestError) {
+      showError(requestError);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function saveProva(prova) {
+    setBusy(`prova-${prova.id}`);
+
+    try {
+      const data = await sendRequest(`/api/provas/${prova.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(prova),
+      });
+
+      setProvas((current) => current.map((item) => (item.id === prova.id ? data.prova : item)));
+      showSuccess("Prova salva.");
+    } catch (requestError) {
+      showError(requestError);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function deleteProva(id) {
+    setBusy(`delete-prova-${id}`);
+
+    try {
+      await sendRequest(`/api/provas/${id}`, { method: "DELETE" });
+      setProvas((current) => current.filter((prova) => prova.id !== id));
+      showSuccess("Prova removida.");
     } catch (requestError) {
       showError(requestError);
     } finally {
@@ -663,6 +895,7 @@ export default function DashboardClient({
     { id: "inicio", label: "Início", icon: LayoutDashboard },
     { id: "notas", label: "Notas", icon: GraduationCap },
     { id: "trabalhos", label: "Trabalhos", icon: ClipboardList },
+    { id: "provas", label: "Provas", icon: BookOpen },
     { id: "horarios", label: "Horários", icon: CalendarDays },
     { id: "perfil", label: "Informações pessoais", icon: UserRound },
   ];
@@ -682,20 +915,12 @@ export default function DashboardClient({
             <div className="flex gap-2 lg:hidden">
               <IconButton
                 type="button"
-                onClick={toggleDarkMode}
+                onClick={() => setSettingsOpen(true)}
                 className="border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                title={darkMode ? "Modo claro" : "Modo escuro"}
+                title="Settings"
+                aria-label="Abrir settings"
               >
-                {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-              </IconButton>
-              <IconButton
-                type="button"
-                onClick={logout}
-                disabled={busy === "logout"}
-                className="border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                title="Sair"
-              >
-                <LogOut size={18} />
+                <Settings size={18} />
               </IconButton>
             </div>
           </div>
@@ -726,20 +951,11 @@ export default function DashboardClient({
           <div className="mt-8 hidden lg:block">
             <IconButton
               type="button"
-              onClick={toggleDarkMode}
+              onClick={() => setSettingsOpen(true)}
               className="mb-3 w-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
-              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-              {darkMode ? "Modo claro" : "Modo escuro"}
-            </IconButton>
-            <IconButton
-              type="button"
-              onClick={logout}
-              disabled={busy === "logout"}
-              className="w-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            >
-              <LogOut size={18} />
-              Sair
+              <Settings size={18} />
+              Settings
             </IconButton>
           </div>
         </aside>
@@ -781,13 +997,20 @@ export default function DashboardClient({
               </header>
 
               <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-                <TodayClassesCard overview={todayOverview} />
-                <UpcomingDeadlinesCard deadlines={upcomingDeadlines} ready={Boolean(todayDate)} />
+                <TodayClassesCard
+                  overview={todayOverview}
+                  subjectColorsEnabled={subjectColorsEnabled}
+                />
+                <UpcomingDeadlinesCard
+                  deadlines={upcomingDeadlines}
+                  ready={Boolean(todayDate)}
+                  subjectColorsEnabled={subjectColorsEnabled}
+                />
               </section>
 
               <section>
                 <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-100">Informações importantes</h3>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
                   <Metric
                     label="Coeficiente atual"
                     value={formatTruncatedOneDecimal(stats.coeficiente)}
@@ -802,6 +1025,11 @@ export default function DashboardClient({
                     label="Trabalhos"
                     value={formatNumber(stats.trabalhosPendentes)}
                     icon={<ClipboardList size={20} />}
+                  />
+                  <Metric
+                    label="Provas"
+                    value={formatNumber(stats.provas)}
+                    icon={<BookOpen size={20} />}
                   />
                   <Metric
                     label="Créditos totais"
@@ -823,6 +1051,22 @@ export default function DashboardClient({
               addTrabalho={addTrabalho}
               saveTrabalho={saveTrabalho}
               deleteTrabalho={deleteTrabalho}
+              todayDate={todayDate}
+              subjectColorsEnabled={subjectColorsEnabled}
+              busy={busy}
+            />
+          )}
+
+          {activeTab === "provas" && (
+            <ExamSection
+              provas={provas}
+              novaProva={novaProva}
+              setNovaProva={setNovaProva}
+              updateProva={updateProva}
+              addProva={addProva}
+              saveProva={saveProva}
+              deleteProva={deleteProva}
+              subjectColorsEnabled={subjectColorsEnabled}
               busy={busy}
             />
           )}
@@ -837,6 +1081,7 @@ export default function DashboardClient({
               saveNota={saveNota}
               deleteNota={deleteNota}
               generateGradesPdf={generateGradesPdf}
+              subjectColorsEnabled={subjectColorsEnabled}
               busy={busy}
             />
           )}
@@ -846,12 +1091,106 @@ export default function DashboardClient({
               horarios={horarios}
               updateHorario={updateHorario}
               saveHorarios={saveHorarios}
+              subjectColorsEnabled={subjectColorsEnabled}
               busy={busy}
             />
           )}
         </section>
       </div>
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        darkMode={darkMode}
+        toggleDarkMode={toggleDarkMode}
+        subjectColorsEnabled={subjectColorsEnabled}
+        toggleSubjectColors={toggleSubjectColors}
+        logout={logout}
+        busy={busy}
+      />
     </main>
+  );
+}
+
+function SettingsPanel({
+  open,
+  onClose,
+  darkMode,
+  toggleDarkMode,
+  subjectColorsEnabled,
+  toggleSubjectColors,
+  logout,
+  busy,
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-slate-950/40 p-0 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4">
+      <section className="w-full rounded-t-lg border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900 sm:max-w-md sm:rounded-lg">
+        <header className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#1d6f8f]">Settings</p>
+            <h2 className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-100">
+              Configurações
+            </h2>
+          </div>
+          <IconButton
+            type="button"
+            onClick={onClose}
+            className="h-10 w-10 border border-slate-200 bg-white px-0 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            title="Fechar"
+            aria-label="Fechar settings"
+          >
+            <X size={18} />
+          </IconButton>
+        </header>
+
+        <div className="mt-5 space-y-3">
+          <label className="flex items-center justify-between gap-4 rounded-md border border-slate-200 px-4 py-3 dark:border-slate-800">
+            <span>
+              <span className="block text-sm font-semibold text-slate-950 dark:text-slate-100">
+                Cores nas matérias
+              </span>
+              <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                Colorir matérias iguais automaticamente.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={subjectColorsEnabled}
+              onChange={toggleSubjectColors}
+              className="h-5 w-5 accent-[#1d6f8f]"
+            />
+          </label>
+
+          <label className="flex items-center justify-between gap-4 rounded-md border border-slate-200 px-4 py-3 dark:border-slate-800">
+            <span>
+              <span className="block text-sm font-semibold text-slate-950 dark:text-slate-100">
+                Modo escuro
+              </span>
+              <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                Alternar entre claro e escuro.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={darkMode}
+              onChange={toggleDarkMode}
+              className="h-5 w-5 accent-[#1d6f8f]"
+            />
+          </label>
+        </div>
+
+        <IconButton
+          type="button"
+          onClick={logout}
+          disabled={busy === "logout"}
+          className="mt-5 w-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200 dark:hover:bg-red-950"
+        >
+          <LogOut size={18} />
+          Sair
+        </IconButton>
+      </section>
+    </div>
   );
 }
 
@@ -940,7 +1279,7 @@ function deadlineBadgeClassName(daysUntil) {
   return "bg-cyan-50 text-[#1d6f8f] dark:bg-cyan-950 dark:text-cyan-200";
 }
 
-function TodayClassesCard({ overview }) {
+function TodayClassesCard({ overview, subjectColorsEnabled }) {
   const hasLessons = overview.lessons.length > 0;
 
   return (
@@ -981,10 +1320,23 @@ function TodayClassesCard({ overview }) {
                 {lesson.id}
               </span>
               <div className="min-w-0">
+                <span
+                  className={`mb-1 inline-flex max-w-full items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${getSubjectPalette(
+                    lesson.materia,
+                    subjectColorsEnabled
+                  ).chip}`}
+                >
+                  <span
+                    className={`mr-1.5 h-2 w-2 shrink-0 rounded-full ${getSubjectPalette(
+                      lesson.materia,
+                      subjectColorsEnabled
+                    ).accent}`}
+                  />
+                  <span className="truncate">{lesson.materia}</span>
+                </span>
                 <p className="truncate text-sm font-semibold text-slate-950 dark:text-slate-100">
-                  {lesson.materia}
+                  {lesson.label}
                 </p>
-                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{lesson.label}</p>
               </div>
             </div>
           ))}
@@ -994,7 +1346,7 @@ function TodayClassesCard({ overview }) {
   );
 }
 
-function UpcomingDeadlinesCard({ deadlines, ready }) {
+function UpcomingDeadlinesCard({ deadlines, ready, subjectColorsEnabled }) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <div>
@@ -1019,9 +1371,17 @@ function UpcomingDeadlinesCard({ deadlines, ready }) {
       {ready && deadlines.length > 0 && (
         <div className="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
           {deadlines.map((trabalho) => (
-            <div key={trabalho.id} className="py-3 first:pt-0 last:pb-0">
+            <div key={`${trabalho.type}-${trabalho.id}`} className="py-3 first:pt-0 last:pb-0">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
+                  <span
+                    className={`mb-1 inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${getSubjectPalette(
+                      trabalho.materia,
+                      subjectColorsEnabled
+                    ).chip}`}
+                  >
+                    {trabalho.type}
+                  </span>
                   <p className="truncate text-sm font-semibold text-slate-950 dark:text-slate-100">
                     {trabalho.titulo}
                   </p>
@@ -1045,7 +1405,10 @@ function UpcomingDeadlinesCard({ deadlines, ready }) {
   );
 }
 
-function ScheduleSection({ horarios, updateHorario, saveHorarios, busy }) {
+function ScheduleSection({ horarios, updateHorario, saveHorarios, subjectColorsEnabled, busy }) {
+  const [activeDayId, setActiveDayId] = useState(scheduleDays[0].id);
+  const activeDay = scheduleDays.find((day) => day.id === activeDayId) || scheduleDays[0];
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1061,7 +1424,90 @@ function ScheduleSection({ horarios, updateHorario, saveHorarios, busy }) {
         </IconButton>
       </header>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="space-y-3 md:hidden">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {scheduleDays.map((day) => {
+            const isActive = activeDay.id === day.id;
+
+            return (
+              <button
+                key={day.id}
+                type="button"
+                onClick={() => setActiveDayId(day.id)}
+                className={`h-10 shrink-0 rounded-md px-3 text-sm font-semibold transition ${
+                  isActive
+                    ? "bg-[#17324d] text-white"
+                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                }`}
+              >
+                {day.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="space-y-3">
+          {scheduleSlots.map((slot) => {
+            if (slot.breakLabel) {
+              return (
+                <div
+                  key={slot.id}
+                  className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center shadow-sm dark:border-slate-800 dark:bg-slate-800/70"
+                >
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    {slot.label}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    {slot.breakLabel}
+                  </p>
+                </div>
+              );
+            }
+
+            const value = horarios[horarioKey(activeDay.id, slot.id)] || "";
+            const unavailable = isUnavailableHorario(value);
+            const palette = getSubjectPalette(value, subjectColorsEnabled && !unavailable);
+
+            return (
+              <article
+                key={slot.id}
+                className={`rounded-lg border bg-white p-4 shadow-sm dark:bg-slate-900 ${
+                  unavailable ? "border-slate-400 dark:border-slate-700" : palette.chip
+                }`}
+              >
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-950 dark:text-slate-100">
+                    {slot.label}
+                  </p>
+                  {unavailable && (
+                    <span className="rounded-md bg-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      Sem aula
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={unavailable ? "" : value}
+                  onChange={(event) => updateHorario(activeDay.id, slot.id, event.target.value)}
+                  onKeyDown={(event) => {
+                    if (unavailable && (event.key === "Backspace" || event.key === "Delete")) {
+                      updateHorario(activeDay.id, slot.id, "");
+                    }
+                  }}
+                  title={unavailable ? "Sem matéria nesse horário" : undefined}
+                  className={`h-10 w-full rounded-md border px-3 text-sm outline-none transition focus:border-[#1d6f8f] focus:ring-4 focus:ring-cyan-100 dark:focus:ring-cyan-950 ${
+                    unavailable
+                      ? "border-slate-400 bg-slate-200 text-slate-400 shadow-inner dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-500"
+                      : palette.field
+                  }`}
+                />
+              </article>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 md:block">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead className="bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -1096,6 +1542,7 @@ function ScheduleSection({ horarios, updateHorario, saveHorarios, busy }) {
                     {scheduleDays.map((day) => {
                       const value = horarios[horarioKey(day.id, slot.id)] || "";
                       const unavailable = isUnavailableHorario(value);
+                      const palette = getSubjectPalette(value, subjectColorsEnabled && !unavailable);
 
                       return (
                         <td key={day.id} className="px-2 py-2 align-top">
@@ -1117,7 +1564,7 @@ function ScheduleSection({ horarios, updateHorario, saveHorarios, busy }) {
                             className={`h-10 w-full rounded-md border px-2 text-sm outline-none transition focus:border-[#1d6f8f] focus:ring-4 focus:ring-cyan-100 dark:focus:ring-cyan-950 ${
                               unavailable
                                 ? "border-slate-400 bg-slate-200 text-slate-400 shadow-inner dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-500"
-                                : "border-slate-300 bg-white text-slate-950 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                : palette.field
                             }`}
                           />
                         </td>
@@ -1142,6 +1589,8 @@ function WorkSection({
   addTrabalho,
   saveTrabalho,
   deleteTrabalho,
+  todayDate,
+  subjectColorsEnabled,
   busy,
 }) {
   return (
@@ -1152,7 +1601,7 @@ function WorkSection({
 
       <form
         onSubmit={addTrabalho}
-        className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:grid-cols-[1.4fr_180px_1fr_140px_auto]"
+        className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:grid-cols-[1.3fr_170px_1fr_120px_130px_auto]"
       >
         <Input
           value={novoTrabalho.titulo}
@@ -1186,6 +1635,16 @@ function WorkSection({
           }
           placeholder="Valor"
         />
+        <Select
+          value={novoTrabalho.status}
+          onChange={(event) =>
+            setNovoTrabalho((current) => ({ ...current, status: event.target.value }))
+          }
+          aria-label="Status"
+        >
+          <option value="pendente">Pendente</option>
+          <option value="entregue">Entregue</option>
+        </Select>
         <IconButton
           type="submit"
           disabled={busy === "add-trabalho"}
@@ -1208,6 +1667,12 @@ function WorkSection({
             key={trabalho.id}
             className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
           >
+            <span
+              className={`mb-3 block h-1.5 w-16 rounded-full ${getSubjectPalette(
+                trabalho.materia,
+                subjectColorsEnabled
+              ).accent}`}
+            />
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
@@ -1218,6 +1683,13 @@ function WorkSection({
                   onChange={(event) => updateTrabalho(trabalho.id, "titulo", event.target.value)}
                   className="mt-1"
                 />
+                <span
+                  className={`mt-2 inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${getWorkStatusClassName(
+                    getWorkStatus(trabalho, todayDate)
+                  )}`}
+                >
+                  {getWorkStatusLabel(getWorkStatus(trabalho, todayDate))}
+                </span>
               </div>
 
               <div className="flex shrink-0 gap-2 pt-5">
@@ -1281,8 +1753,21 @@ function WorkSection({
                 <Input
                   value={trabalho.materia}
                   onChange={(event) => updateTrabalho(trabalho.id, "materia", event.target.value)}
-                  className="mt-1"
+                  className={`mt-1 ${getSubjectPalette(trabalho.materia, subjectColorsEnabled).field}`}
                 />
+              </div>
+              <div className="col-span-2">
+                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+                  Status
+                </p>
+                <Select
+                  value={normalizeWorkStatus(trabalho.status)}
+                  onChange={(event) => updateTrabalho(trabalho.id, "status", event.target.value)}
+                  className="mt-1"
+                >
+                  <option value="pendente">Pendente</option>
+                  <option value="entregue">Entregue</option>
+                </Select>
               </div>
             </div>
           </article>
@@ -1291,20 +1776,21 @@ function WorkSection({
 
       <div className="hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 md:block">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[980px] border-collapse text-left text-sm">
             <thead className="bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               <tr>
                 <th className="px-4 py-3 font-semibold">Trabalho</th>
                 <th className="px-4 py-3 font-semibold">Data para entrega</th>
                 <th className="px-4 py-3 font-semibold">Matéria</th>
                 <th className="px-4 py-3 font-semibold">Valor</th>
+                <th className="px-4 py-3 font-semibold">Status</th>
                 <th className="px-4 py-3 font-semibold">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {trabalhos.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                  <td colSpan="6" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                     Nenhum trabalho cadastrado.
                   </td>
                 </tr>
@@ -1334,6 +1820,7 @@ function WorkSection({
                       onChange={(event) =>
                         updateTrabalho(trabalho.id, "materia", event.target.value)
                       }
+                      className={getSubjectPalette(trabalho.materia, subjectColorsEnabled).field}
                     />
                   </td>
                   <td className="px-4 py-3">
@@ -1344,6 +1831,22 @@ function WorkSection({
                       value={trabalho.valor}
                       onChange={(event) => updateTrabalho(trabalho.id, "valor", event.target.value)}
                     />
+                  </td>
+                  <td className="px-4 py-3">
+                    <Select
+                      value={normalizeWorkStatus(trabalho.status)}
+                      onChange={(event) => updateTrabalho(trabalho.id, "status", event.target.value)}
+                    >
+                      <option value="pendente">Pendente</option>
+                      <option value="entregue">Entregue</option>
+                    </Select>
+                    <span
+                      className={`mt-2 inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${getWorkStatusClassName(
+                        getWorkStatus(trabalho, todayDate)
+                      )}`}
+                    >
+                      {getWorkStatusLabel(getWorkStatus(trabalho, todayDate))}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
@@ -1377,6 +1880,312 @@ function WorkSection({
   );
 }
 
+function ExamSection({
+  provas,
+  novaProva,
+  setNovaProva,
+  updateProva,
+  addProva,
+  saveProva,
+  deleteProva,
+  subjectColorsEnabled,
+  busy,
+}) {
+  return (
+    <div className="space-y-6">
+      <header>
+        <h2 className="text-3xl font-semibold text-slate-950 dark:text-slate-100">Provas</h2>
+      </header>
+
+      <form
+        onSubmit={addProva}
+        className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:grid-cols-[1.2fr_170px_1fr_120px_120px_auto]"
+      >
+        <Input
+          value={novaProva.titulo}
+          onChange={(event) =>
+            setNovaProva((current) => ({ ...current, titulo: event.target.value }))
+          }
+          placeholder="Prova"
+        />
+        <DateInput
+          aria-label="Data da prova"
+          title="Data da prova"
+          value={novaProva.dataProva}
+          onChange={(event) =>
+            setNovaProva((current) => ({ ...current, dataProva: event.target.value }))
+          }
+        />
+        <Input
+          value={novaProva.materia}
+          onChange={(event) =>
+            setNovaProva((current) => ({ ...current, materia: event.target.value }))
+          }
+          placeholder="Matéria"
+        />
+        <Input
+          type="number"
+          min="0"
+          step="0.01"
+          value={novaProva.valor}
+          onChange={(event) =>
+            setNovaProva((current) => ({ ...current, valor: event.target.value }))
+          }
+          placeholder="Valor"
+        />
+        <Input
+          type="number"
+          min="0"
+          step="0.01"
+          value={novaProva.nota}
+          onChange={(event) =>
+            setNovaProva((current) => ({ ...current, nota: event.target.value }))
+          }
+          placeholder="Nota"
+        />
+        <IconButton
+          type="submit"
+          disabled={busy === "add-prova"}
+          className="bg-[#1d6f8f] text-white hover:bg-[#155873]"
+        >
+          <Plus size={18} />
+          Adicionar
+        </IconButton>
+        <Textarea
+          value={novaProva.conteudo}
+          onChange={(event) =>
+            setNovaProva((current) => ({ ...current, conteudo: event.target.value }))
+          }
+          placeholder="Conteúdo para estudar"
+          className="lg:col-span-6"
+        />
+      </form>
+
+      <div className="space-y-3 md:hidden">
+        {provas.length === 0 && (
+          <div className="rounded-lg border border-slate-200 bg-white p-5 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+            Nenhuma prova cadastrada.
+          </div>
+        )}
+
+        {provas.map((prova) => (
+          <article
+            key={prova.id}
+            className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          >
+            <span
+              className={`mb-3 block h-1.5 w-16 rounded-full ${getSubjectPalette(
+                prova.materia,
+                subjectColorsEnabled
+              ).accent}`}
+            />
+            <div className="flex items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+                  Prova
+                </p>
+                <Input
+                  value={prova.titulo}
+                  onChange={(event) => updateProva(prova.id, "titulo", event.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="flex shrink-0 gap-2 pt-5">
+                <IconButton
+                  type="button"
+                  onClick={() => saveProva(prova)}
+                  disabled={busy === `prova-${prova.id}`}
+                  className="h-10 w-10 border border-slate-200 bg-white px-0 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  title="Salvar"
+                  aria-label="Salvar prova"
+                >
+                  <Save size={18} />
+                </IconButton>
+                <IconButton
+                  type="button"
+                  onClick={() => deleteProva(prova.id)}
+                  disabled={busy === `delete-prova-${prova.id}`}
+                  className="h-10 w-10 border border-red-200 bg-red-50 px-0 text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200 dark:hover:bg-red-950"
+                  title="Remover"
+                  aria-label="Remover prova"
+                >
+                  <Trash2 size={18} />
+                </IconButton>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+                  Data
+                </p>
+                <DateInput
+                  aria-label="Data da prova"
+                  title="Data da prova"
+                  value={prova.dataProva}
+                  onChange={(event) => updateProva(prova.id, "dataProva", event.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+                  Matéria
+                </p>
+                <Input
+                  value={prova.materia}
+                  onChange={(event) => updateProva(prova.id, "materia", event.target.value)}
+                  className={`mt-1 ${getSubjectPalette(prova.materia, subjectColorsEnabled).field}`}
+                />
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+                  Valor
+                </p>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={prova.valor}
+                  onChange={(event) => updateProva(prova.id, "valor", event.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+                  Nota
+                </p>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={prova.nota}
+                  onChange={(event) => updateProva(prova.id, "nota", event.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+                  Conteúdo
+                </p>
+                <Textarea
+                  value={prova.conteudo}
+                  onChange={(event) => updateProva(prova.id, "conteudo", event.target.value)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 md:block">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1040px] border-collapse text-left text-sm">
+            <thead className="bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              <tr>
+                <th className="px-4 py-3 font-semibold">Prova</th>
+                <th className="px-4 py-3 font-semibold">Data</th>
+                <th className="px-4 py-3 font-semibold">Matéria</th>
+                <th className="px-4 py-3 font-semibold">Conteúdo</th>
+                <th className="px-4 py-3 font-semibold">Valor</th>
+                <th className="px-4 py-3 font-semibold">Nota</th>
+                <th className="px-4 py-3 font-semibold">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {provas.length === 0 && (
+                <tr>
+                  <td colSpan="7" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                    Nenhuma prova cadastrada.
+                  </td>
+                </tr>
+              )}
+
+              {provas.map((prova) => (
+                <tr key={prova.id}>
+                  <td className="px-4 py-3">
+                    <Input
+                      value={prova.titulo}
+                      onChange={(event) => updateProva(prova.id, "titulo", event.target.value)}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <DateInput
+                      aria-label="Data da prova"
+                      title="Data da prova"
+                      value={prova.dataProva}
+                      onChange={(event) => updateProva(prova.id, "dataProva", event.target.value)}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <Input
+                      value={prova.materia}
+                      onChange={(event) => updateProva(prova.id, "materia", event.target.value)}
+                      className={getSubjectPalette(prova.materia, subjectColorsEnabled).field}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <Textarea
+                      value={prova.conteudo}
+                      onChange={(event) => updateProva(prova.id, "conteudo", event.target.value)}
+                      className="min-h-10"
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={prova.valor}
+                      onChange={(event) => updateProva(prova.id, "valor", event.target.value)}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={prova.nota}
+                      onChange={(event) => updateProva(prova.id, "nota", event.target.value)}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <IconButton
+                        type="button"
+                        onClick={() => saveProva(prova)}
+                        disabled={busy === `prova-${prova.id}`}
+                        className="border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        title="Salvar"
+                      >
+                        <Save size={18} />
+                      </IconButton>
+                      <IconButton
+                        type="button"
+                        onClick={() => deleteProva(prova.id)}
+                        disabled={busy === `delete-prova-${prova.id}`}
+                        className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200 dark:hover:bg-red-950"
+                        title="Remover"
+                      >
+                        <Trash2 size={18} />
+                      </IconButton>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function GradeSection({
   notas,
   novaNota,
@@ -1386,6 +2195,7 @@ function GradeSection({
   saveNota,
   deleteNota,
   generateGradesPdf,
+  subjectColorsEnabled,
   busy,
 }) {
   return (
@@ -1458,6 +2268,12 @@ function GradeSection({
             key={nota.id}
             className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
           >
+            <span
+              className={`mb-3 block h-1.5 w-16 rounded-full ${getSubjectPalette(
+                nota.materia,
+                subjectColorsEnabled
+              ).accent}`}
+            />
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
@@ -1466,7 +2282,7 @@ function GradeSection({
                 <Input
                   value={nota.materia}
                   onChange={(event) => updateNota(nota.id, "materia", event.target.value)}
-                  className="mt-1"
+                  className={`mt-1 ${getSubjectPalette(nota.materia, subjectColorsEnabled).field}`}
                 />
               </div>
 
@@ -1587,6 +2403,7 @@ function GradeSection({
                     <Input
                       value={nota.materia}
                       onChange={(event) => updateNota(nota.id, "materia", event.target.value)}
+                      className={getSubjectPalette(nota.materia, subjectColorsEnabled).field}
                     />
                   </td>
                   <td className="px-4 py-3">

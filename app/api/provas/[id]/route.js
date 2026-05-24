@@ -7,18 +7,14 @@ function parseId(value) {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
-function parseValor(value) {
+function parseValue(value) {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : 0;
 }
 
-function parseStatus(value) {
-  return value === "entregue" ? "entregue" : "pendente";
-}
-
-async function selectTrabalho(id, userId) {
+async function selectProva(id, userId) {
   const result = await query(
-    "SELECT id, titulo, data_entrega AS \"dataEntrega\", materia, valor, status FROM trabalhos WHERE id = $1 AND usuario_id = $2",
+    "SELECT id, titulo, data_prova AS \"dataProva\", materia, conteudo, valor, nota FROM provas WHERE id = $1 AND usuario_id = $2",
     [id, userId]
   );
 
@@ -36,33 +32,34 @@ export async function PATCH(request, context) {
   const id = parseId(rawId);
 
   if (!id) {
-    return NextResponse.json({ error: "Trabalho inválido." }, { status: 400 });
+    return NextResponse.json({ error: "Prova inválida." }, { status: 400 });
   }
 
   const data = await request.json();
   const titulo = String(data.titulo || "").trim();
-  const dataEntrega = String(data.dataEntrega || "").trim();
+  const dataProva = String(data.dataProva || "").trim();
   const materia = String(data.materia || "").trim();
-  const valor = parseValor(data.valor);
-  const status = parseStatus(data.status);
+  const conteudo = String(data.conteudo || "").trim();
+  const valor = parseValue(data.valor);
+  const nota = parseValue(data.nota);
 
-  if (!titulo || !dataEntrega || !materia) {
+  if (!titulo || !dataProva || !materia) {
     return NextResponse.json(
-      { error: "Preencha trabalho, data de entrega e matéria." },
+      { error: "Preencha prova, data e matéria." },
       { status: 400 }
     );
   }
 
   const result = await query(
-    "UPDATE trabalhos SET titulo = $1, data_entrega = $2, materia = $3, valor = $4, status = $5 WHERE id = $6 AND usuario_id = $7",
-    [titulo, dataEntrega, materia, valor, status, id, user.id]
+    "UPDATE provas SET titulo = $1, data_prova = $2, materia = $3, conteudo = $4, valor = $5, nota = $6 WHERE id = $7 AND usuario_id = $8",
+    [titulo, dataProva, materia, conteudo, valor, nota, id, user.id]
   );
 
   if (result.rowCount === 0) {
-    return NextResponse.json({ error: "Trabalho não encontrado." }, { status: 404 });
+    return NextResponse.json({ error: "Prova não encontrada." }, { status: 404 });
   }
 
-  return NextResponse.json({ trabalho: await selectTrabalho(id, user.id) });
+  return NextResponse.json({ prova: await selectProva(id, user.id) });
 }
 
 export async function DELETE(_request, context) {
@@ -76,10 +73,10 @@ export async function DELETE(_request, context) {
   const id = parseId(rawId);
 
   if (!id) {
-    return NextResponse.json({ error: "Trabalho inválido." }, { status: 400 });
+    return NextResponse.json({ error: "Prova inválida." }, { status: 400 });
   }
 
-  await query("DELETE FROM trabalhos WHERE id = $1 AND usuario_id = $2", [id, user.id]);
+  await query("DELETE FROM provas WHERE id = $1 AND usuario_id = $2", [id, user.id]);
 
   return NextResponse.json({ ok: true });
 }
