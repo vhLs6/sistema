@@ -18,9 +18,14 @@ function parseCreditos(value) {
   return Number.isFinite(number) && number >= 0 ? number : 0;
 }
 
+function parseFaltas(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? Math.trunc(number) : 0;
+}
+
 async function selectNota(id, userId) {
   const result = await query(
-    "SELECT id, materia, nota_atual AS \"notaAtual\", creditos FROM notas WHERE id = $1 AND usuario_id = $2",
+    "SELECT id, materia, nota_atual AS \"notaAtual\", creditos, faltas FROM notas WHERE id = $1 AND usuario_id = $2",
     [id, userId]
   );
 
@@ -45,14 +50,15 @@ export async function PATCH(request, context) {
   const materia = String(data.materia || "").trim();
   const notaAtual = parseNota(data.notaAtual);
   const creditos = parseCreditos(data.creditos);
+  const faltas = parseFaltas(data.faltas);
 
   if (!materia) {
     return NextResponse.json({ error: "Preencha a matéria." }, { status: 400 });
   }
 
   const result = await query(
-    "UPDATE notas SET materia = $1, nota_atual = $2, creditos = $3 WHERE id = $4 AND usuario_id = $5",
-    [materia, notaAtual, creditos, id, user.id]
+    "UPDATE notas SET materia = $1, nota_atual = $2, creditos = $3, faltas = $4 WHERE id = $5 AND usuario_id = $6",
+    [materia, notaAtual, creditos, faltas, id, user.id]
   );
 
   if (result.rowCount === 0) {

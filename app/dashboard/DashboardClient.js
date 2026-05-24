@@ -29,6 +29,7 @@ const emptyNota = {
   materia: "",
   notaAtual: "",
   creditos: "",
+  faltas: "",
 };
 
 const numberFormatter = new Intl.NumberFormat("pt-BR", {
@@ -39,6 +40,21 @@ const oneDecimalFormatter = new Intl.NumberFormat("pt-BR", {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
 });
+
+const todayFormatter = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "long",
+  day: "2-digit",
+  month: "long",
+});
+
+const deadlineFormatter = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "short",
+});
+
+const dayInMs = 24 * 60 * 60 * 1000;
+
+const dayIdsByDateIndex = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
 
 const scheduleDays = [
   { id: "segunda", label: "Segunda" },
@@ -80,12 +96,107 @@ function notaRestante(notaAtual) {
   return Math.max(60 - toNumber(notaAtual), 0);
 }
 
+function startOfDay(date) {
+  const normalizedDate = new Date(date);
+  normalizedDate.setHours(0, 0, 0, 0);
+  return normalizedDate;
+}
+
+function parseDateInput(value) {
+  const [year, month, day] = String(value || "")
+    .split("-")
+    .map(Number);
+
+  if (!year || !month || !day) return null;
+
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getDeadlineLabel(daysUntil) {
+  if (daysUntil === 0) return "Hoje";
+  if (daysUntil === 1) return "Amanhã";
+  return `Em ${daysUntil} dias`;
+}
+
 function horarioKey(dayId, slotId) {
   return `${dayId}__${slotId}`;
 }
 
 function isUnavailableHorario(value) {
   return String(value || "").trim().toLowerCase() === "null";
+}
+
+function buildTodayOverview(todayDate, horarios) {
+  if (!todayDate) {
+    return {
+      status: "loading",
+      dateLabel: "Carregando seu dia...",
+      lessons: [],
+    };
+  }
+
+  const dayId = dayIdsByDateIndex[todayDate.getDay()];
+  const dateLabel = todayFormatter.format(todayDate);
+
+  if (dayId === "sabado" || dayId === "domingo") {
+    return {
+      status: "weekend",
+      dateLabel,
+      lessons: [],
+      message:
+        dayId === "sabado"
+          ? "Sábado chegou: sem aulas cadastradas por aqui. Dá pra respirar um pouco."
+          : "Domingo é território de descanso. Amanhã a gente volta pro plano.",
+    };
+  }
+
+  const lessons = scheduleSlots
+    .filter((slot) => !slot.breakLabel)
+    .map((slot) => {
+      const value = horarios[horarioKey(dayId, slot.id)] || "";
+      const materia = String(value).trim();
+
+      if (!materia || isUnavailableHorario(materia)) return null;
+
+      return {
+        id: slot.id,
+        label: slot.label,
+        materia,
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    status: "weekday",
+    dateLabel,
+    lessons,
+  };
+}
+
+function buildUpcomingDeadlines(trabalhos, todayDate) {
+  if (!todayDate) return [];
+
+  const today = startOfDay(todayDate);
+
+  return trabalhos
+    .map((trabalho) => {
+      const deadlineDate = parseDateInput(trabalho.dataEntrega);
+      if (!deadlineDate) return null;
+
+      const daysUntil = Math.round((startOfDay(deadlineDate) - today) / dayInMs);
+      if (daysUntil < 0 || daysUntil > 7) return null;
+
+      return {
+        ...trabalho,
+        daysUntil,
+        dateLabel: deadlineFormatter.format(deadlineDate),
+        deadlineLabel: getDeadlineLabel(daysUntil),
+      };
+    })
+    .filter(Boolean)
+    .sort((first, second) => first.daysUntil - second.daysUntil || first.id - second.id)
+    .slice(0, 5);
 }
 
 function createHorarioGrid(initialHorarios = []) {
@@ -170,6 +281,7 @@ export default function DashboardClient({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [darkMode, setDarkMode] = useState(false);
+  const [todayDate, setTodayDate] = useState(null);
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("theme");
@@ -178,6 +290,10 @@ export default function DashboardClient({
 
     setDarkMode(shouldUseDark);
     document.documentElement.classList.toggle("dark", shouldUseDark);
+  }, []);
+
+  useEffect(() => {
+    setTodayDate(new Date());
   }, []);
 
   useEffect(() => {
@@ -206,20 +322,25 @@ export default function DashboardClient({
       0
     );
     const coeficiente = creditosTotais > 0 ? somaPonderada / creditosTotais : 0;
-    const mediaNotas =
-      totalMaterias > 0
-        ? notas.reduce((sum, nota) => sum + toNumber(nota.notaAtual), 0) / totalMaterias
-        : 0;
     const trabalhosPendentes = trabalhos.length;
 
     return {
       coeficiente,
-      mediaNotas,
       totalMaterias,
       creditosTotais,
       trabalhosPendentes,
     };
   }, [notas, trabalhos]);
+
+  const todayOverview = useMemo(
+    () => buildTodayOverview(todayDate, horarios),
+    [todayDate, horarios]
+  );
+
+  const upcomingDeadlines = useMemo(
+    () => buildUpcomingDeadlines(trabalhos, todayDate),
+    [trabalhos, todayDate]
+  );
 
   async function sendRequest(url, options) {
     const response = await fetch(url, {
@@ -655,9 +776,14 @@ export default function DashboardClient({
                   Olá, {userName}.
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-                  Seu painel de trabalhos, notas e coeficiente atual.
+                  Seu dia, seus prazos e os números principais em um lugar só.
                 </p>
               </header>
+
+              <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+                <TodayClassesCard overview={todayOverview} />
+                <UpcomingDeadlinesCard deadlines={upcomingDeadlines} ready={Boolean(todayDate)} />
+              </section>
 
               <section>
                 <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-100">Informações importantes</h3>
@@ -685,25 +811,6 @@ export default function DashboardClient({
                 </div>
               </section>
 
-              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-100">Resumo das notas</h3>
-                <div className="mt-4 grid gap-4 md:grid-cols-3">
-                  <SummaryLine label="Média simples" value={formatNumber(stats.mediaNotas)} />
-                  <SummaryLine
-                    label="Soma nota x crédito"
-                    value={formatNumber(
-                      notas.reduce(
-                        (sum, nota) => sum + toNumber(nota.notaAtual) * toNumber(nota.creditos),
-                        0
-                      )
-                    )}
-                  />
-                  <SummaryLine
-                    label="Fórmula do coeficiente"
-                    value="somatória(nota x crédito) / créditos totais"
-                  />
-                </div>
-              </section>
             </div>
           )}
 
@@ -821,12 +928,120 @@ function ProfileSection({ profile, updateProfile, saveProfile, busy }) {
   );
 }
 
-function SummaryLine({ label, value }) {
+function deadlineBadgeClassName(daysUntil) {
+  if (daysUntil === 0) {
+    return "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-200";
+  }
+
+  if (daysUntil === 1) {
+    return "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-200";
+  }
+
+  return "bg-cyan-50 text-[#1d6f8f] dark:bg-cyan-950 dark:text-cyan-200";
+}
+
+function TodayClassesCard({ overview }) {
+  const hasLessons = overview.lessons.length > 0;
+
   return (
-    <div className="rounded-md border border-slate-200 px-4 py-3 dark:border-slate-800">
-      <p className="text-sm font-medium text-slate-600 dark:text-slate-300">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-100">{value}</p>
-    </div>
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-[#1d6f8f]">Hoje</p>
+          <h3 className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-100">
+            {overview.dateLabel}
+          </h3>
+        </div>
+        <span className="w-fit rounded-md bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          {overview.status === "weekend" ? "Descanso" : "Aulas"}
+        </span>
+      </div>
+
+      {overview.status === "loading" && (
+        <p className="mt-5 text-sm text-slate-600 dark:text-slate-300">Organizando seu dia...</p>
+      )}
+
+      {overview.status === "weekend" && (
+        <p className="mt-5 rounded-md bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+          {overview.message}
+        </p>
+      )}
+
+      {overview.status === "weekday" && !hasLessons && (
+        <p className="mt-5 rounded-md bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+          Nenhuma matéria cadastrada para hoje.
+        </p>
+      )}
+
+      {overview.status === "weekday" && hasLessons && (
+        <div className="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
+          {overview.lessons.map((lesson) => (
+            <div key={`${lesson.id}-${lesson.materia}`} className="flex gap-3 py-3 first:pt-0 last:pb-0">
+              <span className="flex h-9 min-w-[4rem] items-center justify-center rounded-md bg-cyan-50 px-2 text-xs font-semibold text-[#1d6f8f] dark:bg-cyan-950 dark:text-cyan-200">
+                {lesson.id}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-950 dark:text-slate-100">
+                  {lesson.materia}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{lesson.label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function UpcomingDeadlinesCard({ deadlines, ready }) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-wide text-[#1d6f8f]">
+          Prazos próximos
+        </p>
+        <h3 className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-100">
+          Próximos 7 dias
+        </h3>
+      </div>
+
+      {!ready && (
+        <p className="mt-5 text-sm text-slate-600 dark:text-slate-300">Carregando prazos...</p>
+      )}
+
+      {ready && deadlines.length === 0 && (
+        <p className="mt-5 rounded-md bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+          Nenhum prazo chegando nos próximos 7 dias.
+        </p>
+      )}
+
+      {ready && deadlines.length > 0 && (
+        <div className="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
+          {deadlines.map((trabalho) => (
+            <div key={trabalho.id} className="py-3 first:pt-0 last:pb-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-950 dark:text-slate-100">
+                    {trabalho.titulo}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {trabalho.materia || "Sem matéria"} - {trabalho.dateLabel}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-semibold ${deadlineBadgeClassName(
+                    trabalho.daysUntil
+                  )}`}
+                >
+                  {trabalho.deadlineLabel}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1181,7 +1396,7 @@ function GradeSection({
 
       <form
         onSubmit={addNota}
-        className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:grid-cols-[1.4fr_160px_160px_auto]"
+        className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:grid-cols-[1.4fr_140px_140px_120px_auto]"
       >
         <Input
           value={novaNota.materia}
@@ -1210,6 +1425,16 @@ function GradeSection({
             setNovaNota((current) => ({ ...current, creditos: event.target.value }))
           }
           placeholder="Créditos"
+        />
+        <Input
+          type="number"
+          min="0"
+          step="1"
+          value={novaNota.faltas}
+          onChange={(event) =>
+            setNovaNota((current) => ({ ...current, faltas: event.target.value }))
+          }
+          placeholder="Faltas"
         />
         <IconButton
           type="submit"
@@ -1299,13 +1524,27 @@ function GradeSection({
                 />
               </div>
 
-              <div className="col-span-2">
+              <div>
                 <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
                   Nota restante
                 </p>
                 <span className="mt-1 flex h-10 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                   {formatNumber(notaRestante(nota.notaAtual))}
                 </span>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+                  Faltas
+                </p>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={nota.faltas ?? ""}
+                  onChange={(event) => updateNota(nota.id, "faltas", event.target.value)}
+                  className="mt-1"
+                />
               </div>
             </div>
           </article>
@@ -1314,19 +1553,21 @@ function GradeSection({
 
       <div className="hidden overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 md:block">
         <div className="overflow-x-auto">
-          <table className="grades-table w-full min-w-[560px] table-fixed border-collapse text-left text-sm md:min-w-[860px] md:table-auto">
+          <table className="grades-table w-full min-w-[960px] border-collapse text-left text-sm">
             <colgroup>
-              <col className="w-[150px] md:w-auto" />
-              <col className="w-[104px] md:w-auto" />
-              <col className="w-[118px] md:w-auto" />
-              <col className="w-[88px] md:w-auto" />
-              <col className="w-[100px] md:w-auto" />
+              <col className="w-[30%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[12%]" />
+              <col className="w-[12%]" />
+              <col className="w-[18%]" />
             </colgroup>
             <thead className="bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               <tr>
                 <th className="px-4 py-3 font-semibold">Matéria</th>
-                <th className="w-[104px] px-2 py-2 font-semibold md:w-auto md:px-4 md:py-3">Minha nota</th>
-                <th className="w-[118px] px-2 py-2 font-semibold md:w-auto md:px-4 md:py-3">Nota restante</th>
+                <th className="px-4 py-3 font-semibold">Minha nota</th>
+                <th className="px-4 py-3 font-semibold">Nota restante</th>
+                <th className="px-4 py-3 font-semibold">Faltas</th>
                 <th className="px-4 py-3 font-semibold">Créditos</th>
                 <th className="px-4 py-3 font-semibold">Ações</th>
               </tr>
@@ -1334,7 +1575,7 @@ function GradeSection({
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {notas.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                  <td colSpan="6" className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                     Nenhuma matéria cadastrada.
                   </td>
                 </tr>
@@ -1362,6 +1603,15 @@ function GradeSection({
                     <span className="flex h-10 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                       {formatNumber(notaRestante(nota.notaAtual))}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={nota.faltas ?? ""}
+                      onChange={(event) => updateNota(nota.id, "faltas", event.target.value)}
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <Input

@@ -18,7 +18,7 @@ export default async function DashboardPage() {
   );
 
   const notas = await query(
-    "SELECT id, materia, nota_atual AS \"notaAtual\", creditos FROM notas WHERE usuario_id = $1 ORDER BY materia ASC, id DESC",
+    "SELECT id, materia, nota_atual AS \"notaAtual\", creditos, faltas FROM notas WHERE usuario_id = $1 ORDER BY materia ASC, id DESC",
     [user.id]
   );
 
