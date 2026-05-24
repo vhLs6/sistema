@@ -13,7 +13,6 @@ const allowedTimes = new Set([
   "13:50",
   "15:00",
   "15:50",
-  "16:40",
 ]);
 
 function normalizeCell(cell) {

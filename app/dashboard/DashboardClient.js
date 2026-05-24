@@ -61,7 +61,6 @@ const scheduleSlots = [
   { id: "pausa-tarde", label: "14:40 - 15:00", breakLabel: "Pausa" },
   { id: "15:00", label: "15:00 - 15:50" },
   { id: "15:50", label: "15:50 - 16:40" },
-  { id: "16:40", label: "16:40 - 17:30" },
 ];
 
 function toNumber(value) {
@@ -83,6 +82,10 @@ function notaRestante(notaAtual) {
 
 function horarioKey(dayId, slotId) {
   return `${dayId}__${slotId}`;
+}
+
+function isUnavailableHorario(value) {
+  return String(value || "").trim().toLowerCase() === "null";
 }
 
 function createHorarioGrid(initialHorarios = []) {
@@ -875,16 +878,36 @@ function ScheduleSection({ horarios, updateHorario, saveHorarios, busy }) {
                 return (
                   <tr key={slot.id}>
                     <td className="px-3 py-2 font-semibold text-slate-700 dark:text-slate-200">{slot.label}</td>
-                    {scheduleDays.map((day) => (
-                      <td key={day.id} className="px-2 py-2 align-top">
-                        <input
-                          type="text"
-                          value={horarios[horarioKey(day.id, slot.id)] || ""}
-                          onChange={(event) => updateHorario(day.id, slot.id, event.target.value)}
-                          className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-950 outline-none transition focus:border-[#1d6f8f] focus:ring-4 focus:ring-cyan-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-cyan-950"
-                        />
-                      </td>
-                    ))}
+                    {scheduleDays.map((day) => {
+                      const value = horarios[horarioKey(day.id, slot.id)] || "";
+                      const unavailable = isUnavailableHorario(value);
+
+                      return (
+                        <td key={day.id} className="px-2 py-2 align-top">
+                          <input
+                            type="text"
+                            value={unavailable ? "" : value}
+                            onChange={(event) =>
+                              updateHorario(day.id, slot.id, event.target.value)
+                            }
+                            onKeyDown={(event) => {
+                              if (
+                                unavailable &&
+                                (event.key === "Backspace" || event.key === "Delete")
+                              ) {
+                                updateHorario(day.id, slot.id, "");
+                              }
+                            }}
+                            title={unavailable ? "Sem matéria nesse horário" : undefined}
+                            className={`h-10 w-full rounded-md border px-2 text-sm outline-none transition focus:border-[#1d6f8f] focus:ring-4 focus:ring-cyan-100 dark:focus:ring-cyan-950 ${
+                              unavailable
+                                ? "border-slate-400 bg-slate-200 text-slate-400 shadow-inner dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-500"
+                                : "border-slate-300 bg-white text-slate-950 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                            }`}
+                          />
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}
@@ -1107,12 +1130,19 @@ function GradeSection({
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] border-collapse text-left text-sm">
+          <table className="grades-table w-full min-w-[560px] table-fixed border-collapse text-left text-sm md:min-w-[860px] md:table-auto">
+            <colgroup>
+              <col className="w-[150px] md:w-auto" />
+              <col className="w-[104px] md:w-auto" />
+              <col className="w-[118px] md:w-auto" />
+              <col className="w-[88px] md:w-auto" />
+              <col className="w-[100px] md:w-auto" />
+            </colgroup>
             <thead className="bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               <tr>
                 <th className="px-4 py-3 font-semibold">Matéria</th>
-                <th className="px-4 py-3 font-semibold">Minha nota</th>
-                <th className="px-4 py-3 font-semibold">Nota restante</th>
+                <th className="w-[104px] px-2 py-2 font-semibold md:w-auto md:px-4 md:py-3">Minha nota</th>
+                <th className="w-[118px] px-2 py-2 font-semibold md:w-auto md:px-4 md:py-3">Nota restante</th>
                 <th className="px-4 py-3 font-semibold">Créditos</th>
                 <th className="px-4 py-3 font-semibold">Ações</th>
               </tr>
