@@ -74,14 +74,14 @@ export default function Home() {
           <div className="flex min-h-80 flex-col justify-between bg-[#17324d] p-8 text-white md:p-10">
             <div>
               <p className="text-sm font-medium uppercase tracking-wide text-cyan-200">
-                Sistema básico
+                Área de estudos
               </p>
               <h1 className="mt-4 max-w-md text-4xl font-semibold leading-tight md:text-5xl">
-                Login real com cadastro salvo no SQLite
+                Organize sua rotina escolar em um só lugar
               </h1>
             </div>
             <p className="mt-10 max-w-sm text-sm leading-6 text-slate-200">
-              Crie um usuário, volte para entrar e acesse a área interna.
+              Acompanhe horários, trabalhos, provas, notas e faltas com um painel feito para o dia a dia.
             </p>
           </div>
 
@@ -128,8 +128,8 @@ export default function Home() {
               <h2 className="text-2xl font-semibold">{isLogin ? "Entrar" : "Criar conta"}</h2>
               <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
                 {isLogin
-                  ? "Use o nome, a matricula e a senha que você cadastrou."
-                  : "Informe um nome de usuário, matricula e senha para salvar no banco."}
+                  ? "Entre para ver seus horários, prazos, notas e provas."
+                  : "Crie sua conta para montar seu painel de estudos."}
               </p>
             </div>
 

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { jsPDF } from "jspdf";
 import {
   BookOpen,
   CalendarDays,
   ClipboardList,
+  Ellipsis,
   FileDown,
   GraduationCap,
   LayoutDashboard,
@@ -62,41 +63,8 @@ const deadlineFormatter = new Intl.DateTimeFormat("pt-BR", {
   month: "short",
 });
 
-const subjectPalettes = [
-  {
-    accent: "bg-emerald-500",
-    chip: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200",
-    field: "border-emerald-300 bg-emerald-50/70 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100",
-  },
-  {
-    accent: "bg-sky-500",
-    chip: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/50 dark:text-sky-200",
-    field: "border-sky-300 bg-sky-50/70 text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100",
-  },
-  {
-    accent: "bg-amber-500",
-    chip: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200",
-    field: "border-amber-300 bg-amber-50/70 text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100",
-  },
-  {
-    accent: "bg-rose-500",
-    chip: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-200",
-    field: "border-rose-300 bg-rose-50/70 text-rose-950 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-100",
-  },
-  {
-    accent: "bg-violet-500",
-    chip: "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/50 dark:text-violet-200",
-    field: "border-violet-300 bg-violet-50/70 text-violet-950 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-100",
-  },
-  {
-    accent: "bg-teal-500",
-    chip: "border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900 dark:bg-teal-950/50 dark:text-teal-200",
-    field: "border-teal-300 bg-teal-50/70 text-teal-950 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-100",
-  },
-];
-
 const defaultSubjectPalette = {
-  accent: "bg-slate-300 dark:bg-slate-600",
+  accent: "hidden",
   chip: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
   field: "border-slate-300 bg-white text-slate-950 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100",
 };
@@ -168,24 +136,8 @@ function getDeadlineLabel(daysUntil) {
   return `Em ${daysUntil} dias`;
 }
 
-function normalizeSubject(value) {
-  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-function getSubjectPalette(subject, enabled) {
-  const normalizedSubject = normalizeSubject(subject);
-
-  if (!enabled || !normalizedSubject) {
-    return defaultSubjectPalette;
-  }
-
-  let hash = 0;
-
-  for (const character of normalizedSubject) {
-    hash = (hash * 31 + character.charCodeAt(0)) % 9973;
-  }
-
-  return subjectPalettes[hash % subjectPalettes.length];
+function getSubjectPalette() {
+  return defaultSubjectPalette;
 }
 
 function normalizeWorkStatus(value) {
@@ -442,7 +394,7 @@ export default function DashboardClient({
   const [darkMode, setDarkMode] = useState(false);
   const [todayDate, setTodayDate] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [subjectColorsEnabled, setSubjectColorsEnabled] = useState(true);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("theme");
@@ -451,7 +403,6 @@ export default function DashboardClient({
 
     setDarkMode(shouldUseDark);
     document.documentElement.classList.toggle("dark", shouldUseDark);
-    setSubjectColorsEnabled(window.localStorage.getItem("subjectColors") !== "off");
   }, []);
 
   useEffect(() => {
@@ -474,12 +425,6 @@ export default function DashboardClient({
     setDarkMode(nextMode);
     document.documentElement.classList.toggle("dark", nextMode);
     window.localStorage.setItem("theme", nextMode ? "dark" : "light");
-  }
-
-  function toggleSubjectColors() {
-    const nextMode = !subjectColorsEnabled;
-    setSubjectColorsEnabled(nextMode);
-    window.localStorage.setItem("subjectColors", nextMode ? "on" : "off");
   }
 
   const stats = useMemo(() => {
@@ -899,9 +844,20 @@ export default function DashboardClient({
     { id: "horarios", label: "Horários", icon: CalendarDays },
     { id: "perfil", label: "Informações pessoais", icon: UserRound },
   ];
+  const subjectColorsEnabled = false;
+  const bottomNavItems = navItems.filter((item) =>
+    ["inicio", "trabalhos", "provas", "notas"].includes(item.id)
+  );
+  const moreNavItems = navItems.filter((item) => ["horarios", "perfil"].includes(item.id));
+  const isMoreActive = moreNavItems.some((item) => item.id === activeTab);
+
+  function openTab(tabId) {
+    setActiveTab(tabId);
+    setMoreMenuOpen(false);
+  }
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] text-slate-950 transition-colors dark:bg-slate-950 dark:text-slate-100">
+    <main className="min-h-screen bg-[#f6f7fb] pb-24 text-slate-950 transition-colors dark:bg-slate-950 dark:text-slate-100 lg:pb-0">
       <div className="min-h-screen lg:grid lg:grid-cols-[264px_1fr]">
         <aside className="border-b border-slate-200 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-900 lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r">
           <div className="flex items-center justify-between gap-4 lg:block">
@@ -925,7 +881,7 @@ export default function DashboardClient({
             </div>
           </div>
 
-          <nav className="mt-5 flex gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
+          <nav className="mt-5 hidden gap-2 overflow-x-auto lg:flex lg:flex-col lg:overflow-visible">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -934,7 +890,7 @@ export default function DashboardClient({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => openTab(item.id)}
                   className={`flex h-11 shrink-0 items-center gap-3 rounded-md px-3 text-sm font-semibold transition ${
                     isActive
                       ? "bg-[#17324d] text-white"
@@ -1097,13 +1053,73 @@ export default function DashboardClient({
           )}
         </section>
       </div>
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-lg backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
+        <div className="relative mx-auto grid max-w-md grid-cols-5 gap-1">
+          {bottomNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => openTab(item.id)}
+                className={`flex h-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-semibold transition ${
+                  isActive
+                    ? "bg-[#17324d] text-white"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                }`}
+              >
+                <Icon size={20} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={() => setMoreMenuOpen((current) => !current)}
+            className={`flex h-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-semibold transition ${
+              isMoreActive || moreMenuOpen
+                ? "bg-[#17324d] text-white"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+            }`}
+          >
+            <Ellipsis size={20} />
+            <span>Mais</span>
+          </button>
+
+          {moreMenuOpen && (
+            <div className="absolute bottom-16 right-0 w-56 rounded-lg border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-900">
+              {moreNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => openTab(item.id)}
+                    className={`flex h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold transition ${
+                      isActive
+                        ? "bg-[#17324d] text-white"
+                        : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    <Icon size={18} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </nav>
       <SettingsPanel
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         darkMode={darkMode}
         toggleDarkMode={toggleDarkMode}
-        subjectColorsEnabled={subjectColorsEnabled}
-        toggleSubjectColors={toggleSubjectColors}
         logout={logout}
         busy={busy}
       />
@@ -1116,8 +1132,6 @@ function SettingsPanel({
   onClose,
   darkMode,
   toggleDarkMode,
-  subjectColorsEnabled,
-  toggleSubjectColors,
   logout,
   busy,
 }) {
@@ -1145,23 +1159,6 @@ function SettingsPanel({
         </header>
 
         <div className="mt-5 space-y-3">
-          <label className="flex items-center justify-between gap-4 rounded-md border border-slate-200 px-4 py-3 dark:border-slate-800">
-            <span>
-              <span className="block text-sm font-semibold text-slate-950 dark:text-slate-100">
-                Cores nas matérias
-              </span>
-              <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
-                Colorir matérias iguais automaticamente.
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              checked={subjectColorsEnabled}
-              onChange={toggleSubjectColors}
-              className="h-5 w-5 accent-[#1d6f8f]"
-            />
-          </label>
-
           <label className="flex items-center justify-between gap-4 rounded-md border border-slate-200 px-4 py-3 dark:border-slate-800">
             <span>
               <span className="block text-sm font-semibold text-slate-950 dark:text-slate-100">
@@ -1593,14 +1590,29 @@ function WorkSection({
   subjectColorsEnabled,
   busy,
 }) {
+  const [mobileFormOpen, setMobileFormOpen] = useState(false);
+  const activeTrabalhos = trabalhos.filter(
+    (trabalho) => getWorkStatus(trabalho, todayDate) !== "entregue"
+  );
+  const completedTrabalhos = trabalhos.filter(
+    (trabalho) => getWorkStatus(trabalho, todayDate) === "entregue"
+  );
+  const orderedTrabalhos = [...activeTrabalhos, ...completedTrabalhos];
+
+  async function handleAddTrabalho(event) {
+    await addTrabalho(event);
+    setMobileFormOpen(false);
+  }
+
   return (
     <div className="space-y-6">
       <header>
         <h2 className="text-3xl font-semibold text-slate-950 dark:text-slate-100">Trabalhos</h2>
       </header>
 
+      <div className={`${mobileFormOpen ? "block" : "hidden"} md:block`}>
       <form
-        onSubmit={addTrabalho}
+        onSubmit={handleAddTrabalho}
         className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:grid-cols-[1.3fr_170px_1fr_120px_130px_auto]"
       >
         <Input
@@ -1654,6 +1666,7 @@ function WorkSection({
           Adicionar
         </IconButton>
       </form>
+      </div>
 
       <div className="space-y-3 md:hidden">
         {trabalhos.length === 0 && (
@@ -1662,9 +1675,19 @@ function WorkSection({
           </div>
         )}
 
-        {trabalhos.map((trabalho) => (
+        {orderedTrabalhos.map((trabalho, index) => (
+          <div key={trabalho.id} className="space-y-3">
+          {index === 0 && activeTrabalhos.length > 0 && (
+            <p className="px-1 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+              Ativos
+            </p>
+          )}
+          {index === activeTrabalhos.length && completedTrabalhos.length > 0 && (
+            <p className="px-1 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
+              Concluídos
+            </p>
+          )}
           <article
-            key={trabalho.id}
             className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
           >
             <span
@@ -1771,6 +1794,7 @@ function WorkSection({
               </div>
             </div>
           </article>
+          </div>
         ))}
       </div>
 
@@ -1796,8 +1820,23 @@ function WorkSection({
                 </tr>
               )}
 
-              {trabalhos.map((trabalho) => (
-                <tr key={trabalho.id}>
+              {orderedTrabalhos.map((trabalho, index) => (
+                <Fragment key={trabalho.id}>
+                {index === 0 && activeTrabalhos.length > 0 && (
+                  <tr className="bg-slate-50 dark:bg-slate-800/70">
+                    <td colSpan="6" className="px-4 py-2 text-xs font-semibold uppercase text-slate-500 dark:text-slate-300">
+                      Ativos
+                    </td>
+                  </tr>
+                )}
+                {index === activeTrabalhos.length && completedTrabalhos.length > 0 && (
+                  <tr className="bg-slate-50 dark:bg-slate-800/70">
+                    <td colSpan="6" className="px-4 py-2 text-xs font-semibold uppercase text-slate-500 dark:text-slate-300">
+                      Concluídos
+                    </td>
+                  </tr>
+                )}
+                <tr>
                   <td className="px-4 py-3">
                     <Input
                       value={trabalho.titulo}
@@ -1871,11 +1910,20 @@ function WorkSection({
                     </div>
                   </td>
                 </tr>
+                </Fragment>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+      <button
+        type="button"
+        onClick={() => setMobileFormOpen((current) => !current)}
+        className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#1d6f8f] text-white shadow-lg transition hover:bg-[#155873] md:hidden"
+        aria-label="Adicionar trabalho"
+      >
+        {mobileFormOpen ? <X size={22} /> : <Plus size={22} />}
+      </button>
     </div>
   );
 }
@@ -1891,14 +1939,22 @@ function ExamSection({
   subjectColorsEnabled,
   busy,
 }) {
+  const [mobileFormOpen, setMobileFormOpen] = useState(false);
+
+  async function handleAddProva(event) {
+    await addProva(event);
+    setMobileFormOpen(false);
+  }
+
   return (
     <div className="space-y-6">
       <header>
         <h2 className="text-3xl font-semibold text-slate-950 dark:text-slate-100">Provas</h2>
       </header>
 
+      <div className={`${mobileFormOpen ? "block" : "hidden"} md:block`}>
       <form
-        onSubmit={addProva}
+        onSubmit={handleAddProva}
         className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:grid-cols-[1.2fr_170px_1fr_120px_120px_auto]"
       >
         <Input
@@ -1960,6 +2016,7 @@ function ExamSection({
           className="lg:col-span-6"
         />
       </form>
+      </div>
 
       <div className="space-y-3 md:hidden">
         {provas.length === 0 && (
@@ -2182,6 +2239,14 @@ function ExamSection({
           </table>
         </div>
       </div>
+      <button
+        type="button"
+        onClick={() => setMobileFormOpen((current) => !current)}
+        className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#1d6f8f] text-white shadow-lg transition hover:bg-[#155873] md:hidden"
+        aria-label="Adicionar prova"
+      >
+        {mobileFormOpen ? <X size={22} /> : <Plus size={22} />}
+      </button>
     </div>
   );
 }
@@ -2198,14 +2263,22 @@ function GradeSection({
   subjectColorsEnabled,
   busy,
 }) {
+  const [mobileFormOpen, setMobileFormOpen] = useState(false);
+
+  async function handleAddNota(event) {
+    await addNota(event);
+    setMobileFormOpen(false);
+  }
+
   return (
     <div className="space-y-6">
       <header>
         <h2 className="text-3xl font-semibold text-slate-950 dark:text-slate-100">Controle de notas</h2>
       </header>
 
+      <div className={`${mobileFormOpen ? "block" : "hidden"} md:block`}>
       <form
-        onSubmit={addNota}
+        onSubmit={handleAddNota}
         className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:grid-cols-[1.4fr_140px_140px_120px_auto]"
       >
         <Input
@@ -2255,6 +2328,7 @@ function GradeSection({
           Adicionar
         </IconButton>
       </form>
+      </div>
 
       <div className="space-y-3 md:hidden">
         {notas.length === 0 && (
@@ -2478,6 +2552,14 @@ function GradeSection({
           Gerar PDF
         </IconButton>
       </div>
+      <button
+        type="button"
+        onClick={() => setMobileFormOpen((current) => !current)}
+        className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#1d6f8f] text-white shadow-lg transition hover:bg-[#155873] md:hidden"
+        aria-label="Adicionar nota"
+      >
+        {mobileFormOpen ? <X size={22} /> : <Plus size={22} />}
+      </button>
     </div>
   );
 }

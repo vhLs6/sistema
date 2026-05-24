@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Sistema de Login",
-  description: "Login e cadastro com Next.js, React, Tailwind e SQLite",
+  title: "Estudos",
+  description: "Painel para organizar horários, trabalhos, provas, notas e faltas.",
 };
 
 export default function RootLayout({ children }) {
