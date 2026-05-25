@@ -1,7 +1,46 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LogIn, Moon, Sun, UserPlus } from "lucide-react";
+import { ArrowLeft, Eye, Hourglass, LogIn, Moon, Power, Skull, Sun, UserPlus } from "lucide-react";
+
+const horrorProfiles = [
+  { id: "friend-1", name: "Friend 1", initialMs: 23 * 60 * 60 * 1000 + 59 * 60 * 1000 },
+  { id: "friend-2", name: "Friend 2", initialMs: 44 * 365 * 24 * 60 * 60 * 1000 + 3 * 30 * 24 * 60 * 60 * 1000 },
+  { id: "friend-3", name: "Friend 3", initialMs: 52 * 365 * 24 * 60 * 60 * 1000 + 8 * 30 * 24 * 60 * 60 * 1000 },
+  { id: "friend-4", name: "Friend 4", initialMs: 67 * 365 * 24 * 60 * 60 * 1000 + 2 * 30 * 24 * 60 * 60 * 1000 },
+  { id: "friend-5", name: "Friend 5", initialMs: 81 * 365 * 24 * 60 * 60 * 1000 + 6 * 30 * 24 * 60 * 60 * 1000 },
+];
+
+function splitDeathTime(milliseconds) {
+  let totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const years = Math.floor(totalSeconds / (365 * 24 * 60 * 60));
+  totalSeconds -= years * 365 * 24 * 60 * 60;
+
+  const months = Math.floor(totalSeconds / (30 * 24 * 60 * 60));
+  totalSeconds -= months * 30 * 24 * 60 * 60;
+
+  const days = Math.floor(totalSeconds / (24 * 60 * 60));
+  totalSeconds -= days * 24 * 60 * 60;
+
+  const hours = Math.floor(totalSeconds / (60 * 60));
+  totalSeconds -= hours * 60 * 60;
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+
+  return [
+    { label: "YEARS", value: years },
+    { label: "MONTHS", value: months },
+    { label: "DAYS", value: days },
+    { label: "HOURS", value: hours },
+    { label: "MINUTES", value: minutes },
+    { label: "SECONDS", value: seconds },
+  ];
+}
+
+function formatClockValue(value) {
+  return String(value).padStart(2, "0");
+}
 
 export default function Home() {
   const [mode, setMode] = useState("login");
@@ -203,6 +242,267 @@ export default function Home() {
           </div>
         </div>
       </section>
+      <HorrorShortFilmExperience />
     </main>
+  );
+}
+
+function HorrorShortFilmExperience() {
+  const [stage, setStage] = useState("gate");
+  const [selectedProfile, setSelectedProfile] = useState(null);
+  const [startedAt, setStartedAt] = useState(Date.now());
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (stage !== "loading") return;
+
+    const timeoutId = window.setTimeout(() => {
+      setStage("intro");
+    }, 5000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [stage]);
+
+  useEffect(() => {
+    if (!selectedProfile) return;
+
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [selectedProfile]);
+
+  function openGate() {
+    setStage("login");
+    setSelectedProfile(null);
+  }
+
+  function chooseProfile(profile) {
+    const currentTime = Date.now();
+    setSelectedProfile(profile);
+    setStartedAt(currentTime);
+    setNow(currentTime);
+    setStage("loading");
+  }
+
+  function resetScene() {
+    setStage("gate");
+    setSelectedProfile(null);
+  }
+
+  const remainingTime = selectedProfile
+    ? selectedProfile.initialMs - (now - startedAt)
+    : 0;
+  const timeParts = splitDeathTime(remainingTime);
+
+  return (
+    <section className="-mx-4 mt-8 min-h-screen bg-black px-4 py-8 text-stone-100">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[430px] items-center justify-center">
+        <div
+          className="relative min-h-[760px] w-full overflow-hidden rounded-lg border border-red-950/70 bg-[#030303]"
+          style={{ boxShadow: "0 0 70px rgba(127, 29, 29, 0.38)" }}
+        >
+          <div
+            className="absolute inset-0"
+            style={{
+              background: "radial-gradient(circle at top, #250808 0%, #050505 44%, #000000 100%)",
+            }}
+          />
+          <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-red-950/35 to-transparent" />
+          <div
+            className="absolute inset-0 opacity-[0.08]"
+            style={{
+              backgroundImage:
+                "linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)",
+              backgroundSize: "24px 24px",
+            }}
+          />
+
+          <div className="relative flex min-h-[760px] flex-col px-5 py-6">
+            {stage !== "gate" && (
+              <button
+                type="button"
+                onClick={stage === "login" ? resetScene : () => setStage("login")}
+                className="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-900/60 bg-black/55 text-red-100 transition hover:bg-red-950/40"
+                aria-label="Go back"
+                title="Go back"
+              >
+                <ArrowLeft size={18} />
+              </button>
+            )}
+
+            {stage === "gate" && (
+              <div className="flex flex-1 flex-col items-center justify-center text-center">
+                <div
+                  className="mb-8 flex h-20 w-20 items-center justify-center rounded-full border border-red-800/70 bg-red-950/20 text-red-200"
+                  style={{ boxShadow: "0 0 38px rgba(185, 28, 28, 0.42)" }}
+                >
+                  <Power size={34} />
+                </div>
+                <p className="text-xs font-semibold uppercase tracking-[0.45em] text-red-300/80">
+                  Mortal Login
+                </p>
+                <h2 className="mt-4 text-5xl font-black uppercase leading-none text-stone-100">
+                  Enter
+                </h2>
+                <button
+                  type="button"
+                  onClick={openGate}
+                  className="mt-12 flex h-14 w-full items-center justify-center gap-2 rounded-md border border-red-700 bg-red-900 px-5 text-sm font-black uppercase tracking-[0.28em] text-white transition hover:bg-red-800"
+                  style={{ boxShadow: "0 0 34px rgba(185, 28, 28, 0.55)" }}
+                >
+                  <LogIn size={18} />
+                  Enter
+                </button>
+              </div>
+            )}
+
+            {stage === "login" && (
+              <div className="flex flex-1 flex-col">
+                <div className="pt-10 text-center">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-red-900/80 bg-black text-red-200">
+                    <Eye size={30} />
+                  </div>
+                  <p className="mt-6 text-xs font-semibold uppercase tracking-[0.38em] text-red-300/80">
+                    Profile Login
+                  </p>
+                  <h2 className="mt-3 text-3xl font-black uppercase text-stone-100">
+                    Choose a name
+                  </h2>
+                  <p className="mx-auto mt-3 max-w-xs text-sm leading-6 text-stone-400">
+                    Only one profile has been marked for termination.
+                  </p>
+                </div>
+
+                <div className="mt-10 space-y-3">
+                  {horrorProfiles.map((profile) => (
+                    <button
+                      key={profile.id}
+                      type="button"
+                      onClick={() => chooseProfile(profile)}
+                      className="flex h-14 w-full items-center justify-between rounded-md border border-red-950/80 bg-black/70 px-4 text-left text-stone-100 transition hover:border-red-700 hover:bg-red-950/30"
+                    >
+                      <span className="text-base font-bold">{profile.name}</span>
+                      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-red-300">
+                        Sign in
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {stage === "loading" && selectedProfile && (
+              <div className="flex flex-1 flex-col items-center justify-center text-center">
+                <div
+                  className="relative flex h-32 w-32 items-center justify-center rounded-full border border-red-800/70 bg-black"
+                  style={{ boxShadow: "0 0 54px rgba(185, 28, 28, 0.45)" }}
+                >
+                  <div className="absolute inset-3 animate-spin rounded-full border border-transparent border-t-red-400" />
+                  <Skull size={46} className="text-red-100" />
+                </div>
+                <h2 className="mt-8 text-4xl font-black uppercase tracking-[0.16em] text-stone-100">
+                  Mortalis
+                </h2>
+                <p className="mt-4 text-sm font-semibold uppercase tracking-[0.3em] text-red-300">
+                  Access Granted
+                </p>
+                <p className="mt-8 text-sm leading-6 text-stone-400">
+                  Reading pulse. Matching records. Opening final estimate.
+                </p>
+              </div>
+            )}
+
+            {stage === "intro" && selectedProfile && (
+              <div className="flex flex-1 flex-col justify-between">
+                <div className="pt-16">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-md border border-red-900 bg-red-950/30 text-red-200">
+                    <Hourglass size={28} />
+                  </div>
+                  <p className="mt-10 text-xs font-semibold uppercase tracking-[0.34em] text-red-300">
+                    Life Audit Complete
+                  </p>
+                  <h2 className="mt-5 text-4xl font-black uppercase leading-tight text-stone-100">
+                    Your clock was already running.
+                  </h2>
+                  <p className="mt-5 text-base leading-7 text-stone-300">
+                    The system found a final timestamp linked to this profile. Once revealed,
+                    the countdown cannot be hidden.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setStage("result")}
+                  className="mb-4 flex h-14 w-full items-center justify-center gap-2 rounded-md bg-stone-100 px-4 text-sm font-black uppercase tracking-[0.16em] text-black transition hover:bg-red-100"
+                >
+                  <Eye size={18} />
+                  Reveal Time of Death
+                </button>
+              </div>
+            )}
+
+            {stage === "result" && selectedProfile && (
+              <div className="flex flex-1 flex-col">
+                <div className="pt-6 text-center">
+                  <p className="text-xs font-semibold uppercase tracking-[0.38em] text-red-300">
+                    Death Clock
+                  </p>
+                  <h2 className="mt-4 text-4xl font-black uppercase text-stone-100">
+                    {selectedProfile.name}
+                  </h2>
+                  <p className="mt-3 text-sm uppercase tracking-[0.2em] text-stone-500">
+                    Remaining lifetime
+                  </p>
+                </div>
+
+                <div className="mt-10 grid grid-cols-2 gap-3" aria-live="polite">
+                  {timeParts.map((part) => (
+                    <div
+                      key={part.label}
+                      className={`rounded-md border px-3 py-4 text-center ${
+                        selectedProfile.id === "friend-1"
+                          ? "border-red-800 bg-red-950/25"
+                          : "border-stone-800 bg-stone-950/80"
+                      }`}
+                      style={
+                        selectedProfile.id === "friend-1"
+                          ? { boxShadow: "0 0 28px rgba(185, 28, 28, 0.23)" }
+                          : undefined
+                      }
+                    >
+                      <p className="font-mono text-4xl font-black leading-none text-stone-100">
+                        {formatClockValue(part.value)}
+                      </p>
+                      <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.22em] text-stone-500">
+                        {part.label}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-8 rounded-md border border-red-950/80 bg-black/70 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-300">
+                    System Message
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-stone-300">
+                    Do not close the application. The countdown will continue.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setStage("login")}
+                  className="mt-auto flex h-12 w-full items-center justify-center rounded-md border border-stone-800 bg-black text-sm font-bold uppercase tracking-[0.18em] text-stone-300 transition hover:border-red-800 hover:text-red-100"
+                >
+                  Change Profile
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
