@@ -11,6 +11,15 @@ const horrorProfiles = [
   { id: "friend-5", name: "Friend 5", initialMs: 81 * 365 * 24 * 60 * 60 * 1000 + 6 * 30 * 24 * 60 * 60 * 1000 },
 ];
 
+const deathTimeFields = [
+  { key: "years", label: "Years", multiplier: 365 * 24 * 60 * 60 * 1000 },
+  { key: "months", label: "Months", multiplier: 30 * 24 * 60 * 60 * 1000 },
+  { key: "days", label: "Days", multiplier: 24 * 60 * 60 * 1000 },
+  { key: "hours", label: "Hours", multiplier: 60 * 60 * 1000 },
+  { key: "minutes", label: "Minutes", multiplier: 60 * 1000 },
+  { key: "seconds", label: "Seconds", multiplier: 1000 },
+];
+
 function splitDeathTime(milliseconds) {
   let totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
   const years = Math.floor(totalSeconds / (365 * 24 * 60 * 60));
@@ -42,6 +51,44 @@ function formatClockValue(value) {
   return String(value).padStart(2, "0");
 }
 
+function findHorrorProfile(value) {
+  const normalizedValue = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  if (!normalizedValue) return null;
+
+  return (
+    horrorProfiles.find((profile) => {
+      const normalizedName = profile.name.toLowerCase();
+      const compactName = normalizedName.replace(/\s+/g, "");
+
+      return (
+        normalizedValue === normalizedName ||
+        normalizedValue.replace(/\s+/g, "") === compactName ||
+        normalizedValue === profile.id
+      );
+    }) || null
+  );
+}
+
+function timePartsToFormValues(timeParts) {
+  return deathTimeFields.reduce((values, field) => {
+    const matchingPart = timeParts.find((part) => part.label.toLowerCase() === field.key);
+    values[field.key] = matchingPart ? String(matchingPart.value) : "0";
+    return values;
+  }, {});
+}
+
+function formValuesToMilliseconds(values) {
+  return deathTimeFields.reduce((total, field) => {
+    const number = Number(values[field.key]);
+    const safeNumber = Number.isFinite(number) && number > 0 ? number : 0;
+    return total + safeNumber * field.multiplier;
+  }, 0);
+}
+
 export default function Home() {
   const [mode, setMode] = useState("login");
   const [nome, setNome] = useState("");
@@ -51,6 +98,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [horrorAppOpen, setHorrorAppOpen] = useState(false);
 
   const isLogin = mode === "login";
 
@@ -104,6 +152,28 @@ export default function Home() {
     setMode(nextMode);
     setError("");
     setMessage("");
+  }
+
+  function openHorrorApp() {
+    window.scrollTo(0, 0);
+
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+
+    setHorrorAppOpen(true);
+  }
+
+  function closeHorrorApp() {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+
+    setHorrorAppOpen(false);
+  }
+
+  if (horrorAppOpen) {
+    return <HorrorShortFilmExperience onExit={closeHorrorApp} />;
   }
 
   return (
@@ -239,19 +309,50 @@ export default function Home() {
                 {loading ? "Aguarde..." : isLogin ? "Entrar" : "Cadastrar"}
               </button>
             </form>
+
+            {isLogin && (
+              <button
+                type="button"
+                onClick={openHorrorApp}
+                className="mt-5 flex h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-slate-950 px-3 text-xs font-bold uppercase tracking-[0.2em] text-white transition hover:bg-black dark:border-slate-700"
+              >
+                <Power size={16} />
+                Open Mortalis
+              </button>
+            )}
           </div>
         </div>
       </section>
-      <HorrorShortFilmExperience />
     </main>
   );
 }
 
-function HorrorShortFilmExperience() {
-  const [stage, setStage] = useState("gate");
+function HorrorShortFilmExperience({ onExit }) {
+  const [stage, setStage] = useState("login");
+  const [profileInput, setProfileInput] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [selectedProfile, setSelectedProfile] = useState(null);
+  const [baseMs, setBaseMs] = useState(0);
   const [startedAt, setStartedAt] = useState(Date.now());
   const [now, setNow] = useState(Date.now());
+  const [deathTapCount, setDeathTapCount] = useState(0);
+  const [settingsValues, setSettingsValues] = useState(() =>
+    timePartsToFormValues(splitDeathTime(0))
+  );
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previousBackground = document.body.style.background;
+
+    document.body.style.overflow = "hidden";
+    document.body.style.background = "#000";
+    window.scrollTo(0, 0);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.background = previousBackground;
+    };
+  }, []);
 
   useEffect(() => {
     if (stage !== "loading") return;
@@ -273,34 +374,96 @@ function HorrorShortFilmExperience() {
     return () => window.clearInterval(intervalId);
   }, [selectedProfile]);
 
-  function openGate() {
-    setStage("login");
-    setSelectedProfile(null);
-  }
+  useEffect(() => {
+    if (deathTapCount === 0) return;
 
-  function chooseProfile(profile) {
-    const currentTime = Date.now();
-    setSelectedProfile(profile);
-    setStartedAt(currentTime);
-    setNow(currentTime);
-    setStage("loading");
-  }
+    const timeoutId = window.setTimeout(() => {
+      setDeathTapCount(0);
+    }, 900);
 
-  function resetScene() {
-    setStage("gate");
-    setSelectedProfile(null);
-  }
+    return () => window.clearTimeout(timeoutId);
+  }, [deathTapCount]);
 
   const remainingTime = selectedProfile
-    ? selectedProfile.initialMs - (now - startedAt)
+    ? baseMs - (now - startedAt)
     : 0;
   const timeParts = splitDeathTime(remainingTime);
 
+  function startProfile(profile) {
+    const currentTime = Date.now();
+    setSelectedProfile(profile);
+    setBaseMs(profile.initialMs);
+    setStartedAt(currentTime);
+    setNow(currentTime);
+    setLoginError("");
+    setStage("loading");
+  }
+
+  function handleProfileSubmit(event) {
+    event.preventDefault();
+
+    const profile = findHorrorProfile(profileInput);
+
+    if (!profile) {
+      setLoginError("Access denied. Profile not found.");
+      return;
+    }
+
+    startProfile(profile);
+  }
+
+  function returnToHiddenEntry() {
+    setSelectedProfile(null);
+    setBaseMs(0);
+    setProfileInput("");
+    setLoginError("");
+    setStage("login");
+    onExit?.();
+  }
+
+  function openSecretMenu() {
+    setSettingsValues(timePartsToFormValues(timeParts));
+    setDeathTapCount(0);
+    setStage("settings");
+  }
+
+  function handleDeathTimeTap() {
+    const nextCount = deathTapCount + 1;
+
+    if (nextCount >= 3) {
+      openSecretMenu();
+      return;
+    }
+
+    setDeathTapCount(nextCount);
+  }
+
+  function updateSettingsValue(key, value) {
+    const cleanedValue = value.replace(/[^\d]/g, "").slice(0, 4);
+
+    setSettingsValues((currentValues) => ({
+      ...currentValues,
+      [key]: cleanedValue,
+    }));
+  }
+
+  function applySecretTime(event) {
+    event.preventDefault();
+
+    const nextBaseMs = formValuesToMilliseconds(settingsValues);
+    const currentTime = Date.now();
+
+    setBaseMs(nextBaseMs);
+    setStartedAt(currentTime);
+    setNow(currentTime);
+    setStage("result");
+  }
+
   return (
-    <section className="-mx-4 mt-8 min-h-screen bg-black px-4 py-8 text-stone-100">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[430px] items-center justify-center">
+    <main className="min-h-[100dvh] bg-black text-stone-100">
+      <div className="mx-auto flex min-h-[100dvh] w-full max-w-[430px] items-stretch justify-center">
         <div
-          className="relative min-h-[760px] w-full overflow-hidden rounded-lg border border-red-950/70 bg-[#030303]"
+          className="relative min-h-[100dvh] w-full overflow-hidden bg-[#030303] sm:border-x sm:border-red-950/70"
           style={{ boxShadow: "0 0 70px rgba(127, 29, 29, 0.38)" }}
         >
           <div
@@ -319,77 +482,59 @@ function HorrorShortFilmExperience() {
             }}
           />
 
-          <div className="relative flex min-h-[760px] flex-col px-5 py-6">
-            {stage !== "gate" && (
-              <button
-                type="button"
-                onClick={stage === "login" ? resetScene : () => setStage("login")}
-                className="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-900/60 bg-black/55 text-red-100 transition hover:bg-red-950/40"
-                aria-label="Go back"
-                title="Go back"
-              >
-                <ArrowLeft size={18} />
-              </button>
-            )}
-
-            {stage === "gate" && (
-              <div className="flex flex-1 flex-col items-center justify-center text-center">
-                <div
-                  className="mb-8 flex h-20 w-20 items-center justify-center rounded-full border border-red-800/70 bg-red-950/20 text-red-200"
-                  style={{ boxShadow: "0 0 38px rgba(185, 28, 28, 0.42)" }}
-                >
-                  <Power size={34} />
-                </div>
-                <p className="text-xs font-semibold uppercase tracking-[0.45em] text-red-300/80">
-                  Mortal Login
-                </p>
-                <h2 className="mt-4 text-5xl font-black uppercase leading-none text-stone-100">
-                  Enter
-                </h2>
-                <button
-                  type="button"
-                  onClick={openGate}
-                  className="mt-12 flex h-14 w-full items-center justify-center gap-2 rounded-md border border-red-700 bg-red-900 px-5 text-sm font-black uppercase tracking-[0.28em] text-white transition hover:bg-red-800"
-                  style={{ boxShadow: "0 0 34px rgba(185, 28, 28, 0.55)" }}
-                >
-                  <LogIn size={18} />
-                  Enter
-                </button>
-              </div>
-            )}
-
+          <div className="relative flex min-h-[100dvh] flex-col px-5 py-6">
             {stage === "login" && (
-              <div className="flex flex-1 flex-col">
-                <div className="pt-10 text-center">
+              <div className="flex flex-1 flex-col justify-center">
+                <div className="text-center">
                   <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-red-900/80 bg-black text-red-200">
                     <Eye size={30} />
                   </div>
                   <p className="mt-6 text-xs font-semibold uppercase tracking-[0.38em] text-red-300/80">
-                    Profile Login
+                    Mortalis
                   </p>
-                  <h2 className="mt-3 text-3xl font-black uppercase text-stone-100">
-                    Choose a name
+                  <h2 className="mt-3 text-4xl font-black uppercase text-stone-100">
+                    Enter
                   </h2>
                   <p className="mx-auto mt-3 max-w-xs text-sm leading-6 text-stone-400">
-                    Only one profile has been marked for termination.
+                    Identity scan required before the estimate can be opened.
                   </p>
                 </div>
 
-                <div className="mt-10 space-y-3">
-                  {horrorProfiles.map((profile) => (
-                    <button
-                      key={profile.id}
-                      type="button"
-                      onClick={() => chooseProfile(profile)}
-                      className="flex h-14 w-full items-center justify-between rounded-md border border-red-950/80 bg-black/70 px-4 text-left text-stone-100 transition hover:border-red-700 hover:bg-red-950/30"
-                    >
-                      <span className="text-base font-bold">{profile.name}</span>
-                      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-red-300">
-                        Sign in
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                <form onSubmit={handleProfileSubmit} className="mt-10 space-y-4">
+                  <div>
+                    <label htmlFor="mortalis-profile" className="text-xs font-bold uppercase tracking-[0.24em] text-red-300">
+                      Profile
+                    </label>
+                    <input
+                      id="mortalis-profile"
+                      type="text"
+                      value={profileInput}
+                      onChange={(event) => {
+                        setProfileInput(event.target.value);
+                        setLoginError("");
+                      }}
+                      autoComplete="off"
+                      autoCapitalize="words"
+                      className="mt-2 h-14 w-full rounded-md border border-red-950 bg-black/80 px-4 text-base font-semibold text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-red-700 focus:ring-4 focus:ring-red-950/40"
+                      placeholder="Enter profile name"
+                    />
+                  </div>
+
+                  {loginError && (
+                    <p className="rounded-md border border-red-900/80 bg-red-950/35 px-4 py-3 text-sm text-red-100">
+                      {loginError}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="flex h-14 w-full items-center justify-center gap-2 rounded-md border border-red-700 bg-red-900 px-5 text-sm font-black uppercase tracking-[0.28em] text-white transition hover:bg-red-800"
+                    style={{ boxShadow: "0 0 34px rgba(185, 28, 28, 0.55)" }}
+                  >
+                    <LogIn size={18} />
+                    Enter
+                  </button>
+                </form>
               </div>
             )}
 
@@ -427,7 +572,7 @@ function HorrorShortFilmExperience() {
                     Your clock was already running.
                   </h2>
                   <p className="mt-5 text-base leading-7 text-stone-300">
-                    The system found a final timestamp linked to this profile. Once revealed,
+                    The system found a final timestamp linked to this device. Once revealed,
                     the countdown cannot be hidden.
                   </p>
                 </div>
@@ -445,19 +590,22 @@ function HorrorShortFilmExperience() {
 
             {stage === "result" && selectedProfile && (
               <div className="flex flex-1 flex-col">
-                <div className="pt-6 text-center">
+                <div className="pt-12 text-center">
                   <p className="text-xs font-semibold uppercase tracking-[0.38em] text-red-300">
-                    Death Clock
+                    Final Estimate
                   </p>
-                  <h2 className="mt-4 text-4xl font-black uppercase text-stone-100">
-                    {selectedProfile.name}
+                  <h2
+                    onClick={handleDeathTimeTap}
+                    className="mt-4 select-none text-5xl font-black uppercase leading-none text-stone-100"
+                  >
+                    Death Time
                   </h2>
-                  <p className="mt-3 text-sm uppercase tracking-[0.2em] text-stone-500">
+                  <p className="mt-4 text-sm uppercase tracking-[0.2em] text-stone-500">
                     Remaining lifetime
                   </p>
                 </div>
 
-                <div className="mt-10 grid grid-cols-2 gap-3" aria-live="polite">
+                <div className="mt-12 grid grid-cols-2 gap-3" aria-live="polite">
                   {timeParts.map((part) => (
                     <div
                       key={part.label}
@@ -490,19 +638,69 @@ function HorrorShortFilmExperience() {
                     Do not close the application. The countdown will continue.
                   </p>
                 </div>
+              </div>
+            )}
 
-                <button
-                  type="button"
-                  onClick={() => setStage("login")}
-                  className="mt-auto flex h-12 w-full items-center justify-center rounded-md border border-stone-800 bg-black text-sm font-bold uppercase tracking-[0.18em] text-stone-300 transition hover:border-red-800 hover:text-red-100"
-                >
-                  Change Profile
-                </button>
+            {stage === "settings" && selectedProfile && (
+              <div className="flex flex-1 flex-col">
+                <div className="flex items-center justify-between pt-2">
+                  <button
+                    type="button"
+                    onClick={returnToHiddenEntry}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-900/60 bg-black/55 text-red-100 transition hover:bg-red-950/40"
+                    aria-label="Return"
+                    title="Return"
+                  >
+                    <ArrowLeft size={18} />
+                  </button>
+                  <p className="text-xs font-bold uppercase tracking-[0.28em] text-red-300">
+                    Override
+                  </p>
+                </div>
+
+                <form onSubmit={applySecretTime} className="mt-10 flex flex-1 flex-col">
+                  <div className="grid grid-cols-2 gap-3">
+                    {deathTimeFields.map((field) => (
+                      <label
+                        key={field.key}
+                        className="rounded-md border border-stone-800 bg-black/70 p-3"
+                      >
+                        <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-stone-500">
+                          {field.label}
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          inputMode="numeric"
+                          value={settingsValues[field.key]}
+                          onChange={(event) => updateSettingsValue(field.key, event.target.value)}
+                          className="mt-2 h-12 w-full border-0 bg-transparent p-0 font-mono text-3xl font-black text-stone-100 outline-none"
+                        />
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="mt-auto space-y-3 pb-4 pt-8">
+                    <button
+                      type="button"
+                      onClick={() => setStage("result")}
+                      className="flex h-12 w-full items-center justify-center rounded-md border border-stone-800 bg-black text-sm font-bold uppercase tracking-[0.18em] text-stone-300 transition hover:border-red-800 hover:text-red-100"
+                    >
+                      Return
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex h-14 w-full items-center justify-center rounded-md bg-stone-100 px-4 text-sm font-black uppercase tracking-[0.16em] text-black transition hover:bg-red-100"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </form>
               </div>
             )}
           </div>
         </div>
       </div>
-    </section>
+    </main>
   );
 }
