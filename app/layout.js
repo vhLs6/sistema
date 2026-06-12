@@ -1,29 +1,29 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Estudos",
-  applicationName: "Estudos",
+  title: "Challenge Rounds",
+  applicationName: "Challenge Rounds",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Estudos",
+    title: "Rounds",
   },
   other: {
     "mobile-web-app-capable": "yes",
   },
-  description: "Painel para organizar horários, trabalhos, provas, notas e faltas.",
+  description: "A group challenge game with rounds, rewards, and secret challenges.",
 };
 
 export const viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#000000",
+  themeColor: "#101113",
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="pt-BR">
+    <html lang="en">
       <body>{children}</body>
     </html>
   );
