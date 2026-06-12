@@ -3,6 +3,7 @@ import "./globals.css";
 export const metadata = {
   title: "Challenge Rounds",
   applicationName: "Challenge Rounds",
+  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

@@ -105,6 +105,13 @@ function halveMoney(value) {
   return Math.round((Number(value) || 0) * 50) / 100;
 }
 
+function enterFullscreen() {
+  if (typeof document === "undefined") return;
+  if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
+
+  document.documentElement.requestFullscreen().catch(() => {});
+}
+
 export default function Home() {
   const [stage, setStage] = useState("setup");
   const [playerCount, setPlayerCount] = useState(4);
@@ -196,6 +203,7 @@ export default function Home() {
 
   function startGame(event) {
     event.preventDefault();
+    enterFullscreen();
 
     const cleanNames = nameInputs.map((name) => name.trim()).filter(Boolean);
     if (cleanNames.length !== playerCount) {
@@ -324,13 +332,13 @@ export default function Home() {
 
   if (stage === "setup") {
     return (
-      <main className="min-h-screen bg-[#f5f1e8] text-zinc-950">
+      <main className="h-screen overflow-hidden bg-[#f5f1e8] text-zinc-950">
         <section
-          className="mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center px-4 pb-5 pt-4 sm:px-6 lg:py-6"
+          className="flex h-full w-full flex-col overflow-y-auto px-4 pb-5 pt-4 sm:px-6 lg:justify-center lg:overflow-hidden lg:p-6"
           style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
         >
-          <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-            <div className="flex min-h-56 flex-col justify-between rounded-lg bg-zinc-950 p-5 text-white shadow-sm sm:min-h-72 sm:p-8">
+          <div className="grid min-h-full gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="flex min-h-56 flex-col justify-between rounded-lg bg-zinc-950 p-5 text-white shadow-sm sm:min-h-72 sm:p-8 lg:min-h-full">
               <div>
                 <div className="flex h-12 w-12 items-center justify-center rounded-md bg-emerald-400 text-zinc-950">
                   <Users size={25} />
@@ -365,7 +373,7 @@ export default function Home() {
               </div>
             </div>
 
-            <form onSubmit={startGame} className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
+            <form onSubmit={startGame} className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm sm:p-6 lg:flex lg:min-h-full lg:flex-col lg:justify-center">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-600">
@@ -442,15 +450,15 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[#101113] text-white">
+    <main className="h-screen overflow-hidden bg-[#101113] text-white">
       <section
-        className="mx-auto grid min-h-screen w-full max-w-6xl gap-3 px-3 pb-3 pt-3 sm:gap-5 sm:px-4 sm:py-5 lg:grid-cols-[1fr_320px]"
+        className="grid h-full w-full gap-0 overflow-y-auto lg:grid-cols-[1fr_360px] lg:overflow-hidden"
         style={{
-          paddingTop: "max(0.75rem, env(safe-area-inset-top))",
-          paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
-        <div className="flex min-h-[calc(100vh-1.5rem)] flex-col rounded-lg border border-white/10 bg-[#191b1f] p-4 shadow-sm sm:min-h-[calc(100vh-2.5rem)] sm:p-6 lg:min-h-[calc(100vh-2.5rem)]">
+        <div className="flex min-h-screen flex-col bg-[#191b1f] p-4 shadow-sm sm:p-6 lg:h-full lg:min-h-0 lg:overflow-hidden lg:border-r lg:border-white/10">
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
@@ -487,8 +495,8 @@ export default function Home() {
           )}
 
           {activeChallenge && (
-            <div className="flex flex-1 flex-col justify-center py-5 sm:py-8">
-              <div className="mx-auto w-full max-w-3xl">
+            <div className="flex flex-1 flex-col justify-center py-5 sm:py-8 lg:min-h-0">
+              <div className="mx-auto w-full max-w-5xl">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-md bg-amber-300 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-zinc-950">
                     {activeChallenge.level}
@@ -517,7 +525,7 @@ export default function Home() {
                   Skip penalty: everyone loses half of their current cash.
                 </p>
 
-                <div className="mt-4 grid gap-3 sm:mt-5 sm:grid-cols-[1fr_auto]">
+                <div className="mt-4 grid gap-3 sm:mt-5 xl:grid-cols-[1fr_auto]">
                   <div className="flex items-center gap-3 rounded-lg border border-emerald-400/30 bg-emerald-400/10 p-4 text-emerald-100">
                     <CircleDollarSign size={28} />
                     <div>
@@ -528,7 +536,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 rounded-lg sm:w-80">
+                  <div className="grid grid-cols-2 gap-3 rounded-lg xl:w-80">
                     <button
                       type="button"
                       onClick={skipChallenge}
@@ -551,7 +559,7 @@ export default function Home() {
           )}
         </div>
 
-        <aside className="rounded-lg border border-white/10 bg-[#f7f3e9] p-4 text-zinc-950 sm:p-5 lg:min-h-[calc(100vh-2.5rem)]">
+        <aside className="bg-[#f7f3e9] p-4 text-zinc-950 sm:p-5 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:overflow-hidden">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-600">
@@ -562,7 +570,7 @@ export default function Home() {
             <Trophy size={28} className="text-amber-500" />
           </div>
 
-          <div className="mt-5 grid max-h-72 gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:max-h-none lg:grid-cols-1 lg:overflow-visible lg:pr-0">
+          <div className="mt-5 grid max-h-72 gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:min-h-0 lg:flex-1 lg:grid-cols-1 lg:pr-0">
             {players.map((player) => (
               <div
                 key={player.id}
